@@ -1,0 +1,37 @@
+﻿# Abot patches
+
+## Feature 1 : Checkpoint and restart capability (#33)
+
+## Feature 2 : Explicit list of url patterns to exclude (#35)
+
+## Feature 3 : New stopping criterias : duration, size on disk, percent unique (#31) 
+
+## Feature 4 : Log all details about exceptions in the same target file (#8)
+
+## Feature 5 : Handle meta name="robots" content="nofollow,noindex" & header X-Robots-Tag
+
+## Feature 6 : Detect Datadome protection (#9 #13)
+
+## Bug 1 : Encoding name not supported (#23)
+
+## Bug 2 : Url not encoded properly (#3 #22)
+
+## Bug 3 : Redirects and NotFound not handled properly (#4 #9 #30)
+
+# NRobots patches
+
+## Bug 1 : Some websites are not extracted at all (#9)
+
+# AngleSharp patches
+
+## Optimization 1 : ResponseCache
+
+## Optimization 2 : Load Css resources only
+
+## Optimization 3 : Compute Css display & visibility properties only
+
+Parser/Css	    CssParserOptions    bool FilterDisplayAndVisibilityOnly
+Dom/Css/Rules	CssRuleList		    Ignores all CSS style rules except the ones which impact : Display & Visibility
+Dom/Css	        CssStyleSheet		_rules = new CssRuleList(this, parser.Options.FilterDisplayAndVisibilityOnly);
+Dom/Css/Rules	CssGroupingRule		_rules = new CssRuleList(this, parser.Options.FilterDisplayAndVisibilityOnly);
+Dom/Css/Rules	CssKeyframesRule	_rules = new CssRuleList(this, parser.Options.FilterDisplayAndVisibilityOnly);

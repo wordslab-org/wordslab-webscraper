@@ -1,0 +1,79 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.7.34031.279
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "wordslab.nlptextdoc", "wordslab.nlptextdoc\wordslab.nlptextdoc.csproj", "{56F7468F-AB25-499C-A37D-6A5438AF6406}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "wordslab.webscraper", "wordslab.webscraper\wordslab.webscraper.csproj", "{8345731B-5242-45C7-BC73-66ABED115B57}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "wordslab.webscraper.dependencies", "wordslab.webscraper.dependencies", "{667F39D8-D5EC-4B10-B935-5FF9452A770C}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NRobotsPatched", "wordslab.webscraper.dependencies\NRobotsPatched\NRobotsPatched.csproj", "{5335B597-0D37-4343-A387-06E2E5EBE1DE}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AngleSharp", "wordslab.webscraper.dependencies\AngleSharp\AngleSharp.csproj", "{FFD51693-20D9-4DAB-85F6-CC63BC232A28}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Abot", "wordslab.webscraper.dependencies\Abot\Abot.csproj", "{735FE9B5-213D-485F-9D28-9B596C05850D}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{E275BF9F-C387-4B07-B8D1-16759B2FEBC8}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{1D131D69-F92E-43C7-8DC2-6FB8CC22340A}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\publish-wordslab-webscraper.yaml = .github\workflows\publish-wordslab-webscraper.yaml
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Éléments de solution", "Éléments de solution", "{F704F310-140C-4542-8E46-1BE1AA74C72B}"
+	ProjectSection(SolutionItems) = preProject
+		DEPENDENCIES.md = DEPENDENCIES.md
+		LICENSE = LICENSE
+		README.md = README.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "doc", "doc", "{4EC3E5B1-3948-4EF5-8ABA-3646D6EA37CC}"
+	ProjectSection(SolutionItems) = preProject
+		doc\Abot retro engineering.md = doc\Abot retro engineering.md
+		doc\dependencies patches details.xlsx = doc\dependencies patches details.xlsx
+		doc\dependencies patches summary.txt = doc\dependencies patches summary.txt
+		doc\web crawler design.txt = doc\web crawler design.txt
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{56F7468F-AB25-499C-A37D-6A5438AF6406}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{56F7468F-AB25-499C-A37D-6A5438AF6406}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{56F7468F-AB25-499C-A37D-6A5438AF6406}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{56F7468F-AB25-499C-A37D-6A5438AF6406}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8345731B-5242-45C7-BC73-66ABED115B57}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8345731B-5242-45C7-BC73-66ABED115B57}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8345731B-5242-45C7-BC73-66ABED115B57}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8345731B-5242-45C7-BC73-66ABED115B57}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5335B597-0D37-4343-A387-06E2E5EBE1DE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5335B597-0D37-4343-A387-06E2E5EBE1DE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5335B597-0D37-4343-A387-06E2E5EBE1DE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5335B597-0D37-4343-A387-06E2E5EBE1DE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FFD51693-20D9-4DAB-85F6-CC63BC232A28}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FFD51693-20D9-4DAB-85F6-CC63BC232A28}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FFD51693-20D9-4DAB-85F6-CC63BC232A28}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FFD51693-20D9-4DAB-85F6-CC63BC232A28}.Release|Any CPU.Build.0 = Release|Any CPU
+		{735FE9B5-213D-485F-9D28-9B596C05850D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{735FE9B5-213D-485F-9D28-9B596C05850D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{735FE9B5-213D-485F-9D28-9B596C05850D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{735FE9B5-213D-485F-9D28-9B596C05850D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{5335B597-0D37-4343-A387-06E2E5EBE1DE} = {667F39D8-D5EC-4B10-B935-5FF9452A770C}
+		{FFD51693-20D9-4DAB-85F6-CC63BC232A28} = {667F39D8-D5EC-4B10-B935-5FF9452A770C}
+		{735FE9B5-213D-485F-9D28-9B596C05850D} = {667F39D8-D5EC-4B10-B935-5FF9452A770C}
+		{1D131D69-F92E-43C7-8DC2-6FB8CC22340A} = {E275BF9F-C387-4B07-B8D1-16759B2FEBC8}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {A9576B88-BBAF-45DE-9EEC-C1971AFAEA93}
+	EndGlobalSection
+EndGlobal

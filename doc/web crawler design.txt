@@ -1,0 +1,172 @@
+﻿Crawls all the Html pages of a website and converts them to .nlp.txt structured text documents.
+
+Parameters
+
+- rootUrl
+- scope : domain | subdomain | path
+- urlPatternsToExclude : list of Url patterns to exclude from the extraction (robots.txt spec)
+
+- minCrawlDelay=100 : delay in milliseconds between two requests sent to the website
+
+- maxDuration=2     : maximum duration of the extraction in minutes
+- maxPageCount=500  : maximum number of pages extracted from the website
+- minUniqueText=10  : minimum percentage of unique text blocks extracted
+- maxSizeOnDisk=0   : maximum size of the extracted text files on disk in Mb
+
+## should add a max number of errors ##
+
+Storage directory :
+
+- storageDir       : path to the disk directory where the text documents will be extracted
+
+All the extracted text documents are stored under a single directory named like the website
+
+- contentDirectory (generated from rootUrl & scope)
+
+- configuration file	"_nlptextdoc/config.txt"
+- messages log file		"_nlptextdoc/messages.log.tx"
+- requests log file		"_nlptextdoc/httprequests.log.csv"
+- exceptions log file	"_nlptextdoc/exceptions.log.txt"
+- checkpoint files		"_nlptextdoc/checkpoint.bin"
+
+Recommended process
+
+0. Navigate to the rootUrl in your browser and check the links on the page to select a scope for the extraction
+1. Run the the tool once with the default params (maximum 2 minutes/500 pages, small crawl delay)
+2. Open the log file "_nlptextdoc/httprequests.log.csv" created in the storageDirectory for the website
+3. Check for Http "Forbidden" answers, and test if the url was accessible when tested from your browser
+4. Try again with a bigger minCrawlDelay, and continue to increase it until "Forbidden" errors disappear
+5. Open the log file "_nlptextdoc/exceptions.log.txt" created in the storageDirectory for the website
+6. Try to find the root cause and to fix any exception message you see there
+7. Start the extraction again with an intermediate maxPageCount and maxDuration
+8. Open the log file "_nlptextdoc/exceptions.log.txt" and find the Urls you want to exclude
+9. add urlPatternsToExclude and continue or restart the crawl with a bigger maxPageCount and maxDuration
+
+You can stop the crawl (Ctrl-C or shutdown) and continue it later where you left it
+
+- the continue command will use checkpoint and config files found in the "_nlptextdoc\ subfolder
+- the restart command will ignore any checkpoint, start again at the root url, and overwrite everything
+
+WebsiteExtractorParams
+-> init with default values
+-> set properties from command line
+-> WriteToFile(StreamWriter sw)
+-> ReadFromFile(StreamReader sr)
+-> ParseParam("param=value")		// for continue or restart
+
+WebsiteTextExtractor
+-> init from params
+-> or reload from config file + override params
+
+WebsiteTextExtractor.Init()
+-> create storage / content / logs directory if it doesn't exist
+-> capture cancel event in userCancelEventReceived
+-> write (or append) params to file
+-> configure Abot web crawler
+-> configure AngleSharp Html parser
+-> initialize or reload crawl session state (& don't forget to filter scheduled Urls with new filter rules)
+
+WebsiteTextExtractor.ExtractNLPTextDocuments()
+-> initialize PerfMonitor
+-> display message : start message
+-> display message : perf status header
+-> launch the crawl
+-> set PerfMonitor end time 
+-> write a last PerfMonitor status
+-> display message : end message
+
+WebsiteTextExtractor ==> crawl events
+
+(1) WebCrawler.IsInternalUriDecisionMaker = HtmlFileUtils.ShouldCrawlUri(scope, candidateUri, rootUri)
+
+(2) WebCrawler.ShouldCrawlPageLinksDecisionMaker += WebCrawler_ShouldCrawlPageLinks()
+-> add downloaded page to a document cache
+-> parse the Html and Css page and store the result
+-> PerfMonitor add parse time
+-> in case of error, write error log
+
+(3) WebCrawler.PageCrawlCompleted += WebCrawler_PageCrawlCompleted()
+
+-> log request
+
+-> if crawledPage error : PerfMonitor add crawl error 
+-> if crawledPage error or empty : return
+
+-> parse Html and Css with AngleSharp
+-> convert Html to NlpTextDocument with HtmlDocumentConverter.ConvertToNLPTextDocument()
+-> write NlpTextDocument to file
+-> PerfMonitor set percent unique for last doc
+-> PerfMonitor add text conversion time
+
+-> test stopping conditions : stopCrawl / stopMessage
+	+ userCancelEventReceived
+	+ MaxDuration
+	+ MaxPageCOunt
+	+ MinUniqueText
+	+ MaxSizeOnDisk
+
+-> PerfMonitor write status (on screen, or in message file if stopping)
+-> write a checkpoint of the crawler scheduler every minute
+-> if exception : write error
+
+-> if stop crawl : display end message and program Exit
+
+
+(4) AngleSharp.IParser.Parsed += TrackParsedFilesSize()
+-> PerfMonitor.AddDownloadSize html & css
+
+
+[Params file format]
+- scope=            # (domain | subdomain | path)
+- rootUrl=         
+- storageDir=
+- maxDuration=      # Maximum duration of the extraction in minutes
+- maxPageCount=
+- minUniqueText=    # Minimum percentage of unique text blocks extracted
+- maxSizeOnDisk=    # Maximum size of the extracted text files on disk in Mb
+- minCrawlDelay=    # Delay in milliseconds between two requests sent to the website
+- excludeUrls=		# excludeUrls=/authors/
+- excludeUrls=		# excludeUrls=/*.php
+
+[Requests log format]
+- Clock
+- Url
+- Status code
+- Reponse time (ms)
+- Download time (ms)
+- Content size (bytes)
+- Unique text blocks (%)
+- Crawl depth
+- Parent Url
+- Redirected from
+- Retry count
+- Retry after (s)
+- Error message
+
+[PerfMonitor]
+- DateTime StartTime
+- DateTime EndTime
+- long ElapsedTime
+
+- int HtmlPagesCount
+- int CrawlErrorsCount
+- long TotalSizeOnDisk          // Bytes
+- float PercentUniqueForLastDocs
+
+- long TotalDownloadSize        // Bytes
+- long HtmlParseTime            // Milliseconds
+- long TextConvertTime          // Milliseconds
+
+[Error log format]
+- date time
+- context (string)
+- exception message
+- exception stack trace
+
+[Start & End message]
+- start date time
+- continued from previous execution
+- from : rootUrl
+- to : contentDir
+- CrawlResult : success/error + CrawlResult : ErrorException.Message
+- end date time

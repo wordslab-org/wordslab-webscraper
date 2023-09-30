@@ -34,7 +34,7 @@ jobs:
               
     - name: Publish wordslab-webscraper extractor for all operating systems
       run: |
-        cd nlptextdoc.cli
+        cd wordslab.webscraper
         dotnet publish -c Release -p:PublishProfile=windows
         dotnet publish -c Release -p:PublishProfile=linux
         dotnet publish -c Release -p:PublishProfile=macos-x64

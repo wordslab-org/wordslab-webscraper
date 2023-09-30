@@ -61,6 +61,6 @@ jobs:
       with:
         repo_token: "${{ secrets.GITHUB_TOKEN }}"
         files: |
-          wordslab.webscraper/bin/Release/net7.0/win-x64/publish/wordslab-webscraper-win-x64.zip
-          wordslab.webscraper/bin/Release/net7.0/linux-x64/publish/wordslab-webscraper-linux-x64.tar.gz
-          wordslab.webscraper/bin/Release/net7.0/osx-x64/publish/wordslab-webscraper-osx-x64.tar.gz
+          wordslab.webscraper/bin/Release/net7.0/publish/win-x64/wordslab-webscraper-win-x64.zip
+          wordslab.webscraper/bin/Release/net7.0/publish/linux-x64/wordslab-webscraper-linux-x64.tar.gz
+          wordslab.webscraper/bin/Release/net7.0/publish/osx-x64/wordslab-webscraper-osx-x64.tar.gz

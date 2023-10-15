@@ -28,7 +28,7 @@ namespace wordslab.nlptextdoc
         public DocumentElementType Type { get; private set; }
 
         public abstract bool IsEmpty { get; }
-        public abstract bool IsSingle { get; }
+
         public abstract bool IsShort { get; }
     }
 
@@ -42,9 +42,9 @@ namespace wordslab.nlptextdoc
 
         public string Text { get; private set; }
 
-        public override bool IsEmpty => String.IsNullOrEmpty(Text);
+        public NLPTextProperties TextProperties { get; set; }
 
-        public override bool IsSingle => true;
+        public override bool IsEmpty => String.IsNullOrEmpty(Text);
 
         public override bool IsShort => IsEmpty || Text.Length < 50;
     }
@@ -59,11 +59,40 @@ namespace wordslab.nlptextdoc
 
         public IList<DocumentElement> Elements { get; private set; }
 
-        public override bool IsEmpty => Elements.Count == 0 || !Elements.Any(elt => !elt.IsEmpty);
+        /// <summary>
+        /// True if the document tree below this groups of document elements contains at least one unique text block.
+        /// Only available after a full text analysis of the document.
+        /// </summary>
+        public bool ContainsUniqueText { get; set; } = false;
 
-        public override bool IsSingle => IsEmpty || Elements.Count == 1;
+        /// <summary>
+        /// Content of the document: first level elements filtered ignoring non unique group elements
+        /// </summary>
+        public IEnumerable<DocumentElement> UniqueElements
+        {
+            get
+            {
+                foreach (var element in Elements)
+                {
+                    if (element.Type == DocumentElementType.TextBlock)
+                    {
+                        yield return element;
+                    }
+                    else if (element is GroupElement)
+                    {
+                        var groupElement = (GroupElement)element;
+                        if (groupElement.ContainsUniqueText)
+                        {
+                            yield return groupElement;
+                        }
+                    }
+                }
+            }
+        }
 
-        public override bool IsShort => IsEmpty || !Elements.Any(elt => !elt.IsShort);
+        public override bool IsEmpty => Elements.Count == 0 || !UniqueElements.Any(elt => !elt.IsEmpty);
+
+        public override bool IsShort => IsEmpty || !UniqueElements.Any(elt => !elt.IsShort);
     }
 
     public abstract class GroupElementWithTitle : GroupElement
@@ -75,6 +104,8 @@ namespace wordslab.nlptextdoc
         }
 
         public string Title { get; set; }
+
+        public NLPTextProperties TitleProperties { get; set; }
 
         public bool HasTitle => !String.IsNullOrEmpty(Title);
     }

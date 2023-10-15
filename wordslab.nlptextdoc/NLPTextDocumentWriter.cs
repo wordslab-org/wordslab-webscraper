@@ -4,62 +4,161 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Web;
 
 namespace wordslab.nlptextdoc
 {
+    public enum NLPTextDocFormat
+    {
+        TextFile,
+        HtmlPreview,
+        CsvDataframe
+    }
+
     /// <summary>
     /// Write a NLPTextDocument to a text file on disk
     /// </summary>
     public static class NLPTextDocumentWriter
     {
-        public static void WriteToFile(NLPTextDocument doc, string path)
+        public static void WriteToFile(NLPTextDocument doc, string basePath, NLPTextDocFormat docFormat)
         {
-            using (var writer = new StreamWriter(path, false, Encoding.UTF8))
+            string path = GetFullFilePath(basePath, docFormat);
+
+            using (var writer = new StreamWriter(path, false, new UTF8Encoding(true)))
             {
                 int lastNestingLevel = 0;
-
-                WriteDocumentProperty(writer, NLPTextDocumentFormat.TEXT_DOCUMENT_TITLE, doc.Title);
-                WriteDocumentProperty(writer, NLPTextDocumentFormat.TEXT_DOCUMENT_URI, doc.Uri);
-                WriteDocumentProperty(writer, NLPTextDocumentFormat.TEXT_DOCUMENT_TIMESTAMP, doc.Timestamp.ToString(CultureInfo.InvariantCulture));
+                if (docFormat == NLPTextDocFormat.HtmlPreview)
+                {
+                    writer.WriteLine("<!doctype html>");
+                    writer.WriteLine("<html>");
+                    writer.WriteLine("<head>");
+                }
+                else if (docFormat == NLPTextDocFormat.CsvDataframe)
+                {
+                    writer.WriteLine("DocEltType;DocEltCmd;NestingLevel;Text;Lang;Chars;Words;AvgWordsLength;LetterChars;NumberChars;OtherChars;HashCode;IsUnique");
+                    writer.WriteLine("Document;Start;1;;;;;;;;;;");
+                }
+                if (docFormat == NLPTextDocFormat.HtmlPreview)
+                {
+                    writer.WriteLine($"<title>{HttpUtility.HtmlEncode(doc.Title)}</title>");
+                }
+                else
+                {
+                    WriteDocumentProperty(writer, NLPTextDocumentFormat.TEXT_DOCUMENT_TITLE, doc.Title, docFormat);
+                }
+                WriteDocumentProperty(writer, NLPTextDocumentFormat.TEXT_DOCUMENT_URI, doc.Uri, docFormat);
+                WriteDocumentProperty(writer, NLPTextDocumentFormat.TEXT_DOCUMENT_TIMESTAMP, doc.Timestamp.ToString(CultureInfo.InvariantCulture), docFormat);
                 if (doc.HasMetadata)
                 {
                     foreach (var key in doc.Metadata.Keys)
                     {
-                        WriteDocumentProperty(writer, NLPTextDocumentFormat.TEXT_DOCUMENT_METADATA, key + "=" + doc.Metadata[key]);
+                        WriteDocumentProperty(writer, NLPTextDocumentFormat.TEXT_DOCUMENT_METADATA, key + "=" + doc.Metadata[key], docFormat);
                     }
                 }
-                writer.WriteLine();
-                WriteDocumentElements(writer, doc.Elements);
+                if (docFormat == NLPTextDocFormat.TextFile)
+                {
+                    writer.WriteLine();
+                }
+                else if (docFormat == NLPTextDocFormat.HtmlPreview)
+                {
+                    writer.WriteLine("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+                    writer.WriteLine("<link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css\" rel=\"stylesheet\" integrity=\"sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN\" crossorigin=\"anonymous\">");
+                    writer.WriteLine("</head>");
+                    writer.WriteLine("<body>");
+                }
+                if (docFormat == NLPTextDocFormat.CsvDataframe)
+                {
+                    WriteDocumentElements(writer, doc.Elements, docFormat);
+                }
+                else
+                {
+                    WriteDocumentElements(writer, doc.UniqueElements, docFormat);
+                }
+                if (docFormat == NLPTextDocFormat.HtmlPreview)
+                {
+                    writer.WriteLine("</body>");
+                    writer.WriteLine("</html>");
+                }
+                else if (docFormat == NLPTextDocFormat.CsvDataframe)
+                {
+                    writer.WriteLine("Document;End;1;;;;;;;;;;");
+                }
             }
+        }
+
+        public static string GetFullFilePath(string basePath, NLPTextDocFormat docFormat)
+        {
+            string path = basePath;
+            switch (docFormat)
+            {
+                case NLPTextDocFormat.TextFile:
+                    path += ".nlp.txt";
+                    break;
+                case NLPTextDocFormat.HtmlPreview:
+                    path += ".preview.html";
+                    break;
+                case NLPTextDocFormat.CsvDataframe:
+                    path += ".dataframe.csv";
+                    break;
+            }
+
+            return path;
         }
 
         // ## NLPTextDocument Title ...value...
         // ## NLPTextDocument Uri ...value...
         // ## NLPTextDocument Timestamp ...value...
         // ## NLPTextDocument Metadata [key]=...value..
-        private static void WriteDocumentProperty(StreamWriter writer, string propertyName, string propertyValue)
+        private static void WriteDocumentProperty(StreamWriter writer, string propertyName, string propertyValue, NLPTextDocFormat docFormat)
         {
-            writer.Write(NLPTextDocumentFormat.TEXT_DOCUMENT_PROPERTY_PREFIX);
-            writer.Write(propertyName);
-            writer.Write(' ');
-            if (!String.IsNullOrEmpty(propertyValue))
+            if (docFormat == NLPTextDocFormat.TextFile)
             {
-                WriteTextBlock(writer, propertyValue);
+                writer.Write(NLPTextDocumentFormat.TEXT_DOCUMENT_PROPERTY_PREFIX);
+                writer.Write(propertyName);
+                writer.Write(' ');
+                if (!String.IsNullOrEmpty(propertyValue))
+                {
+                    WriteTextBlock(writer, propertyValue, docFormat);
+                }
+                else
+                {
+                    writer.WriteLine();
+                }
             }
-            else
+            else if(docFormat == NLPTextDocFormat.HtmlPreview)
             {
-                writer.WriteLine();
+                writer.WriteLine($"<meta name=\"{HttpUtility.HtmlEncode(propertyName)}\" content=\"{HttpUtility.HtmlEncode(propertyValue)}\">");
+            }
+            else if(docFormat == NLPTextDocFormat.CsvDataframe)
+            {
+                // DocEltType;DocEltCmd;NestingLevel;Text;Lang;Chars;Words;AvgWordsLength;LetterChars;NumberChars;OtherChars;HashCode;IsUnique
+                var textProperties = NLPTextAnalyzer.Instance.AnalyzeText(propertyValue);
+                if (propertyName == "Title")
+                {
+                   writer.WriteLine($"Document;{propertyName};1;\"{textProperties.CSVEncodedText}\";{textProperties.Lang};{textProperties.Chars};{textProperties.Words};{textProperties.AvgWordLength};{textProperties.LetterChars};{textProperties.NumberChars};{textProperties.OtherChars};{textProperties.HashCode};{textProperties.IsUnique}");
+                }
+                else
+                { 
+                    writer.WriteLine($"Document;{propertyName};1;\"{textProperties.CSVEncodedText}\";;;;;;;;;");
+                }
             }
         }
 
-        private static void WriteDocumentElements(StreamWriter writer, IEnumerable<DocumentElement> elements)
+        private static void WriteDocumentElements(StreamWriter writer, IEnumerable<DocumentElement> elements, NLPTextDocFormat docFormat)
         {
             foreach (var docElement in elements)
             {
                 if (docElement.Type == DocumentElementType.TextBlock)
                 {
                     var textBlock = (TextBlock)docElement;
-                    WriteTextBlock(writer, textBlock.Text, true, true);
+                    if (docFormat == NLPTextDocFormat.CsvDataframe)
+                    {
+                        WriteCsvTextBlock(writer, textBlock);
+                    }
+                    else
+                    {
+                        WriteTextBlock(writer, textBlock.Text, docFormat, true, true);
+                    }
                 }
                 else
                 {
@@ -67,40 +166,35 @@ namespace wordslab.nlptextdoc
                     if (groupElement != null) // always true
                     {
                         bool skipGroupWrapper = false;
-                        // Always write NavigationLists (type is a valuable info in this case)
-                        if (docElement.Type != DocumentElementType.NavigationList)
+                        var groupElementWithTitle = groupElement as GroupElementWithTitle;
+                        if (groupElementWithTitle != null && !groupElementWithTitle.HasTitle)
                         {
-                            // Always write group element wrapper if it has a title
-                            var groupElementWithTitle = docElement as GroupElementWithTitle;
-                            if (groupElementWithTitle == null || !groupElementWithTitle.HasTitle)
-                            {
-                                // Skip group wrapper when the group is empty 
-                                skipGroupWrapper = groupElement.IsEmpty;
-                            }
+                            // Skip group wrapper when the group is empty 
+                            skipGroupWrapper = groupElement.IsEmpty;
                         }
 
-                        if (skipGroupWrapper)
+                        if (!skipGroupWrapper)
                         {
-                            if (!groupElement.IsEmpty)
-                            {
-                                WriteDocumentElements(writer, groupElement.Elements);
-                            }
-                        }
-                        else
-                        {
-                            // Write the list items on one line for readability 
-                            // if they are sufficiently "short"
+                            // TextFile format only :
+                            // Write the list items on one line for readability if they are sufficiently "short"
                             var listElement = groupElement as List;
-                            bool writeGroupOnOneLine = listElement != null && listElement.IsShort;
+                            bool writeGroupOnOneLine = listElement != null && listElement.IsShort && docFormat == NLPTextDocFormat.TextFile;
                             if (writeGroupOnOneLine)
                             {
-                                WriteListItems(writer, listElement);
+                                WriteListItems(writer, listElement, docFormat);
                             }
                             else
                             {
-                                WriteDocumentElementStart(writer, docElement);
-                                WriteDocumentElements(writer, groupElement.Elements);
-                                WriteDocumentElementEnd(writer, docElement);
+                                WriteDocumentElementStart(writer, docElement, docFormat);
+                                if (docFormat == NLPTextDocFormat.CsvDataframe)
+                                {
+                                    WriteDocumentElements(writer, groupElement.Elements, docFormat);
+                                }
+                                else
+                                {
+                                    WriteDocumentElements(writer, groupElement.UniqueElements, docFormat);
+                                }
+                                WriteDocumentElementEnd(writer, docElement, docFormat);
                             }
                         }
                     }
@@ -109,8 +203,10 @@ namespace wordslab.nlptextdoc
         }
 
         // ## [NestingLevel] [DocumentElementName] Items [Title] >> [item 1] || [item 2] || [item 3]
-        private static void WriteListItems(StreamWriter writer, List listElement)
+        private static void WriteListItems(StreamWriter writer, List listElement, NLPTextDocFormat docFormat)
         {
+            // This method is only used for NLPTextDocFormat.TextFile
+
             writer.Write(NLPTextDocumentFormat.DOCUMENT_ELEMENT_LINE_MARKER);
             writer.Write(' ');
             writer.Write(listElement.NestingLevel);
@@ -144,7 +240,7 @@ namespace wordslab.nlptextdoc
                         {
                             isFirstItem = false;
                         }
-                        WriteTextBlock(writer, item.Text, false);
+                        WriteTextBlock(writer, item.Text, docFormat, false);
                     }
                 }
             }
@@ -159,98 +255,246 @@ namespace wordslab.nlptextdoc
         // ## [NestingLevel] ListItem Start
         // ## [NestingLevel] [TableHeader|TableCell] Start row,col
         // ## [NestingLevel] [TableHeader|TableCell] Start row:rowspan,col:colspan
-        private static void WriteDocumentElementStart(StreamWriter writer, DocumentElement docElement)
+        private static void WriteDocumentElementStart(StreamWriter writer, DocumentElement docElement, NLPTextDocFormat docFormat)
         {
-            if (docElement.Type == DocumentElementType.Section || docElement.Type == DocumentElementType.List ||
-                docElement.Type == DocumentElementType.Table)
+            if (docFormat == NLPTextDocFormat.TextFile)
             {
+                if (docElement.Type == DocumentElementType.Section || docElement.Type == DocumentElementType.List ||
+                    docElement.Type == DocumentElementType.Table)
+                {
+                    writer.WriteLine();
+                }
+                writer.Write(NLPTextDocumentFormat.DOCUMENT_ELEMENT_LINE_MARKER);
+                writer.Write(' ');
+                writer.Write(docElement.NestingLevel);
+                writer.Write(' ');
+                writer.Write(NLPTextDocumentFormat.ElemNameForElemType[docElement.Type]);
+                writer.Write(' ');
+                writer.Write(NLPTextDocumentFormat.DOCUMENT_ELEMENT_START);
+                writer.Write(' ');
+                switch (docElement.Type)
+                {
+                    case DocumentElementType.Section:
+                    case DocumentElementType.List:
+                    case DocumentElementType.Table:
+                        var groupElement = (GroupElementWithTitle)docElement;
+                        writer.Write(groupElement.Title);
+                        break;
+                    case DocumentElementType.TableHeader:
+                    case DocumentElementType.TableCell:
+                        var tableElement = (TableElement)docElement;
+                        if (tableElement.RowSpan == 1 && tableElement.ColSpan == 1)
+                        {
+                            writer.Write(tableElement.Row);
+                            writer.Write(',');
+                            writer.Write(tableElement.Col);
+                        }
+                        else
+                        {
+                            writer.Write(tableElement.Row);
+                            writer.Write(':');
+                            writer.Write(tableElement.RowSpan);
+                            writer.Write(',');
+                            writer.Write(tableElement.Col);
+                            writer.Write(':');
+                            writer.Write(tableElement.ColSpan);
+                        }
+                        break;
+                }
                 writer.WriteLine();
             }
-            writer.Write(NLPTextDocumentFormat.DOCUMENT_ELEMENT_LINE_MARKER);
-            writer.Write(' ');
-            writer.Write(docElement.NestingLevel);
-            writer.Write(' ');
-            writer.Write(NLPTextDocumentFormat.ElemNameForElemType[docElement.Type]);
-            writer.Write(' ');
-            writer.Write(NLPTextDocumentFormat.DOCUMENT_ELEMENT_START);
-            writer.Write(' ');
-            switch (docElement.Type)
+            else if(docFormat == NLPTextDocFormat.HtmlPreview)
             {
-                case DocumentElementType.Section:
-                case DocumentElementType.List:
-                case DocumentElementType.Table:
-                    var groupElement = (GroupElementWithTitle)docElement;
-                    writer.Write(groupElement.Title);
-                    break;
-                case DocumentElementType.TableHeader:
-                case DocumentElementType.TableCell:
-                    var tableElement = (TableElement)docElement;
-                    if (tableElement.RowSpan == 1 && tableElement.ColSpan == 1)
+
+                var tableElement = docElement as TableElement;
+                if (tableElement != null && tableElement.Col==1)
+                {
+                    writer.WriteLine("<tr>");
+                }
+
+                int headerLevel = Math.Min(docElement.NestingLevel, 6); 
+                switch (docElement.Type)
+                {
+                    case DocumentElementType.Section:
+                        writer.Write($"<h{headerLevel}>");
+                        break;
+                    case DocumentElementType.List:
+                    case DocumentElementType.NavigationList:
+                        writer.Write("<ul");
+                        break;
+                    case DocumentElementType.ListItem:
+                        writer.Write("<li");
+                        break;
+                    case DocumentElementType.Table:                        
+                        writer.Write("<table");
+                        break;
+                    case DocumentElementType.TableHeader:
+                        writer.Write("<th");
+                        break;
+                    case DocumentElementType.TableCell:
+                        writer.WriteLine("<td");                        
+                        break;
+                }
+
+                if (tableElement != null)
+                {
+                    if (tableElement.RowSpan > 1)
                     {
-                        writer.Write(tableElement.Row);
-                        writer.Write(',');
-                        writer.Write(tableElement.Col);
+                        writer.Write($" rowspan=\"{tableElement.RowSpan}\"");
+                    }
+                    if (tableElement.ColSpan > 1)
+                    {
+                        writer.Write($" colspan=\"{tableElement.ColSpan}\"");
+                    }
+                }
+
+                var elementWithTitle = docElement as GroupElementWithTitle;
+                if(elementWithTitle!=null && elementWithTitle.Title != null)
+                {
+                    if(docElement.Type == DocumentElementType.Section)
+                    {
+                        writer.Write(HttpUtility.HtmlEncode(elementWithTitle.Title));
                     }
                     else
                     {
-                        writer.Write(tableElement.Row);
-                        writer.Write(':');
-                        writer.Write(tableElement.RowSpan);
-                        writer.Write(',');
-                        writer.Write(tableElement.Col);
-                        writer.Write(':');
-                        writer.Write(tableElement.ColSpan);
+                        writer.Write($" title=\"{HttpUtility.HtmlEncode(elementWithTitle.Title)}\"");
                     }
-                    break;
+                }
+
+                if (docElement.Type == DocumentElementType.Section)
+                {
+                    writer.WriteLine($"</h{headerLevel}>");
+                }
+                else
+                {
+                    writer.WriteLine(">");
+                }
             }
-            writer.WriteLine();
+            else if(docFormat == NLPTextDocFormat.CsvDataframe)
+            {
+                string elementProperties = null;
+                switch (docElement.Type)
+                {
+                    case DocumentElementType.Section:
+                    case DocumentElementType.List:
+                    case DocumentElementType.Table:
+                        var groupElement = (GroupElementWithTitle)docElement;
+                        if (groupElement.TitleProperties != null)
+                        {
+                            elementProperties = groupElement.TitleProperties.CSVEncodedText;
+                        }
+                        break;
+                    case DocumentElementType.TableHeader:
+                    case DocumentElementType.TableCell:
+                        var tableElement = (TableElement)docElement;
+                        if (tableElement.RowSpan == 1 && tableElement.ColSpan == 1)
+                        {
+                            elementProperties = $"{tableElement.Row},{tableElement.Col}";
+                        }
+                        else
+                        {
+                            elementProperties = $"{tableElement.Row}:{tableElement.RowSpan},{tableElement.Col}:{tableElement.ColSpan}";
+                        }
+                        break;
+                }
+
+                // DocEltType;DocEltCmd;NestingLevel;Text;Lang;Chars;Words;AvgWordsLength;LetterChars;NumberChars;OtherChars;HashCode;IsUnique
+                writer.WriteLine($"{NLPTextDocumentFormat.ElemNameForElemType[docElement.Type]};{NLPTextDocumentFormat.DOCUMENT_ELEMENT_START};{docElement.NestingLevel};\"{elementProperties}\";;;;;;;;;");
+            }
         }
 
         // ## [NestingLevel] [DocumentElementName] End
-        private static void WriteDocumentElementEnd(StreamWriter writer, DocumentElement docElement)
+        private static void WriteDocumentElementEnd(StreamWriter writer, DocumentElement docElement, NLPTextDocFormat docFormat)
         {
-            writer.Write(NLPTextDocumentFormat.DOCUMENT_ELEMENT_LINE_MARKER);
-            writer.Write(' ');
-            writer.Write(docElement.NestingLevel);
-            writer.Write(' ');
-            writer.Write(NLPTextDocumentFormat.ElemNameForElemType[docElement.Type]);
-            writer.Write(' ');
-            writer.Write(NLPTextDocumentFormat.DOCUMENT_ELEMENT_END);
-            var groupElementWithTitle = docElement as GroupElementWithTitle;
-            if (groupElementWithTitle != null)
+            if (docFormat == NLPTextDocFormat.TextFile)
             {
-                if (!String.IsNullOrEmpty(groupElementWithTitle.Title))
+                writer.Write(NLPTextDocumentFormat.DOCUMENT_ELEMENT_LINE_MARKER);
+                writer.Write(' ');
+                writer.Write(docElement.NestingLevel);
+                writer.Write(' ');
+                writer.Write(NLPTextDocumentFormat.ElemNameForElemType[docElement.Type]);
+                writer.Write(' ');
+                writer.Write(NLPTextDocumentFormat.DOCUMENT_ELEMENT_END);
+                var groupElementWithTitle = docElement as GroupElementWithTitle;
+                if (groupElementWithTitle != null)
                 {
-                    writer.Write(" <<");
-                    var title = groupElementWithTitle.Title;
-                    if (title.Length > 47)
+                    if (!String.IsNullOrEmpty(groupElementWithTitle.Title))
                     {
-                        title = title.Substring(0, 47) + "...";
+                        writer.Write(" <<");
+                        var title = groupElementWithTitle.Title;
+                        if (title.Length > 47)
+                        {
+                            title = title.Substring(0, 47) + "...";
+                        }
+                        writer.Write(title);
+                        writer.Write(">>");
                     }
-                    writer.Write(title);
-                    writer.Write(">>");
+                }
+                writer.WriteLine();
+            }
+            else if(docFormat == NLPTextDocFormat.HtmlPreview)
+            {
+                switch (docElement.Type)
+                {
+                    case DocumentElementType.List:
+                    case DocumentElementType.NavigationList:
+                        writer.WriteLine("</ul>");
+                        break;
+                    case DocumentElementType.ListItem:
+                        writer.WriteLine("</li>");
+                        break;
+                    case DocumentElementType.Table:
+                        writer.WriteLine("</table>");
+                        break;
+                    case DocumentElementType.TableHeader:
+                        writer.WriteLine("</th>");
+                        break;
+                    case DocumentElementType.TableCell:
+                        writer.WriteLine("</td>");
+                        break;
                 }
             }
-            writer.WriteLine();
+            else if (docFormat == NLPTextDocFormat.CsvDataframe)
+            {
+                // DocEltType;DocEltCmd;NestingLevel;Text;Lang;Chars;Words;AvgWordsLength;LetterChars;NumberChars;OtherChars;HashCode;IsUnique
+                writer.WriteLine($"{NLPTextDocumentFormat.ElemNameForElemType[docElement.Type]};{NLPTextDocumentFormat.DOCUMENT_ELEMENT_END};{docElement.NestingLevel};;;;;;;;;;");
+            }
         }
 
-        private static void WriteTextBlock(StreamWriter writer, string text, bool finishLine = true, bool escapeLine = false)
+        private static void WriteTextBlock(StreamWriter writer, string text, NLPTextDocFormat docFormat, bool finishLine = true, bool escapeLine = false)
         {
-            if (text.Contains("\n"))
+            if (docFormat == NLPTextDocFormat.TextFile)
             {
-                text = text.Replace("\n", "\\n");
+                if (text.Contains("\n"))
+                {
+                    text = text.Replace("\n", "\\n");
+                }
+                if (escapeLine && text.StartsWith("##"))
+                {
+                    text = ". " + text;
+                }
+                if (finishLine)
+                {
+                    writer.WriteLine(text);
+                }
+                else
+                {
+                    writer.Write(text);
+                }
             }
-            if(escapeLine && text.StartsWith("##"))
+            else if (docFormat == NLPTextDocFormat.HtmlPreview)
             {
-                text = ". " + text;
+                writer.WriteLine($"<div class=\"p-2\">{HttpUtility.HtmlEncode(text)}</div>");
             }
-            if (finishLine)
+        }
+
+        private static void WriteCsvTextBlock(StreamWriter writer, TextBlock textBlock)
+        {
+            // DocEltType;DocEltCmd;NestingLevel;Text;Lang;Chars;Words;AvgWordsLength;LetterChars;NumberChars;OtherChars;HashCode;IsUnique
+            var textProperties = textBlock.TextProperties;
+            if (textProperties != null)
             {
-                writer.WriteLine(text);
-            }
-            else
-            {
-                writer.Write(text);
+                writer.WriteLine($"TextBlock;Text;{textBlock.NestingLevel};\"{textProperties.CSVEncodedText}\";{textProperties.Lang};{textProperties.Chars};{textProperties.Words};{textProperties.AvgWordLength};{textProperties.LetterChars};{textProperties.NumberChars};{textProperties.OtherChars};{textProperties.HashCode};{textProperties.IsUnique}");
             }
         }
     }

@@ -34,6 +34,8 @@ namespace wordslab.nlptextdoc
         internal static string TEXT_DOCUMENT_TIMESTAMP = "Timestamp";
         internal static string TEXT_DOCUMENT_METADATA = "Metadata";
 
+        internal static string TEXTBLOCK_TEXT = "Text";
+
         internal static Regex DOCUMENT_ELEMENT_LINE_REGEX = new Regex(
             DOCUMENT_ELEMENT_LINE_MARKER + " "
             + "(?<NestingLevel>[0-9]+)" + " "

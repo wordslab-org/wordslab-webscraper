@@ -129,7 +129,6 @@ namespace wordslab.webscraper.html
                 fileName += "_" + hash;
             }
             filePath.Append(GetPathValidChars(fileName));
-            filePath.Append(".nlp.txt");
 
             return new FileInfo(filePath.ToString());
         }

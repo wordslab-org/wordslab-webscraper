@@ -104,7 +104,7 @@ namespace wordslab.webscraper
         {
             CrawlConfiguration config = new CrawlConfiguration();
 
-            config.MaxConcurrentThreads = 4; // Environment.ProcessorCount;
+            config.MaxConcurrentThreads = 1; //4; // Environment.ProcessorCount;
             config.MaxPagesToCrawl = 0;
             config.MaxPagesToCrawlPerDomain = 0;
             config.MaxPageSizeInBytes = 0;
@@ -149,14 +149,12 @@ namespace wordslab.webscraper
 
             if (!DoContinue)
             {
-                scheduler = new Scheduler(config.IsUriRecrawlingEnabled, null, null);
+                scheduler = new Scheduler(config.IsUriRecrawlingEnabled, null, null, null);
             }
             else
             {
-                using (FileStream fs = new FileStream(Path.Combine(ContentDirectory.FullName, LogsDirName, CheckpointFileName), FileMode.Open))
-                {
-                    scheduler = Scheduler.Deserialize(fs);
-                }
+                var extractionStateDir = Path.Combine(ContentDirectory.FullName, LogsDirName);
+                scheduler = Scheduler.Deserialize(config.IsUriRecrawlingEnabled, extractionStateDir);
             }
             crawler = new PoliteWebCrawler(config, null, null, scheduler, null, null, null, null, null);
             crawler.IsInternalUri((candidateUri,rootUri) => HtmlFileUtils.ShouldCrawlUri(ExtractorParams.Scope, candidateUri, rootUri));
@@ -343,12 +341,11 @@ namespace wordslab.webscraper
         private DateTime lastCheckpointTime = DateTime.Now;
         private bool userCancelEventReceived = false;
 
-        public static string LogsDirName = "_nlptextdoc";
+        public static string LogsDirName = "_wordslab";
         public static string ConfigFileName = "config.txt";
         public static string RequestsLogFileName = "requests.log.csv";
         public static string MessagesLogFileName = "messages.log.txt";
         public static string ExceptionsLogFileName = "exceptions.log.txt";
-        public static string CheckpointFileName = "checkpoint.bin";
 
         private void InitLogFiles()
         {
@@ -596,13 +593,17 @@ namespace wordslab.webscraper
                 }
                 timer.Stop();
 
+                // Analyze the extracted text blocks and compute stats for text quality filters
+                NLPTextAnalyzer.AnalyzeDocument(normalizedTextDocument, scheduler.UniqueTextBlocks);
+
                 // Check the percentage of text blocks which are new & unique in this page
                 var percentUnique = Perfs.SetPercentUniqueForLastDoc(normalizedTextDocument);
                 
                 // Log the request results
                 LogRequest(crawledPage, percentUnique);
 
-                // Write the NLPTextDocument as a text file on disk
+                // Write the NLPTextDocument as a csv dataframe and as an HTML preview
+                // (the code for tghe legacy text file format will be removed in a future version)
                 if (percentUnique > 0)
                 {
                     var fileInfo = HtmlFileUtils.GetFilePathFromUri(ContentDirectory, htmlDocumentUri);
@@ -610,9 +611,14 @@ namespace wordslab.webscraper
                     {
                         fileInfo.Directory.Create();
                     }
-                    NLPTextDocumentWriter.WriteToFile(normalizedTextDocument, fileInfo.FullName);
+                    NLPTextDocumentWriter.WriteToFile(normalizedTextDocument, fileInfo.FullName, NLPTextDocFormat.CsvDataframe);
+                    NLPTextDocumentWriter.WriteToFile(normalizedTextDocument, fileInfo.FullName, NLPTextDocFormat.HtmlPreview);
 
-                    Perfs.AddTextConversion(timer.ElapsedMilliseconds, fileInfo.Length);
+                    long csvFileSize = 0;
+                    var csvFileInfo = new FileInfo(NLPTextDocumentWriter.GetFullFilePath(fileInfo.FullName, NLPTextDocFormat.CsvDataframe));
+                    if(csvFileInfo.Exists) { csvFileSize = csvFileInfo.Length;  }
+
+                    Perfs.AddTextConversion(timer.ElapsedMilliseconds, csvFileInfo.Length);
                 }
 
                 // Test stopping conditions
@@ -686,15 +692,13 @@ namespace wordslab.webscraper
 
                 // Write one checkpoint every one minute 
                 // to enable the "continue" crawl feature
-                lock (CheckpointFileName)
+                lock (scheduler)
                 {
                     if (stopCrawl || DateTime.Now.Subtract(lastCheckpointTime).Minutes >= 1)
                     {
                         lastCheckpointTime = DateTime.Now;
-                        using (FileStream fs = new FileStream(Path.Combine(ContentDirectory.FullName, LogsDirName, CheckpointFileName), FileMode.Create))
-                        {
-                            scheduler.Serialize(fs);
-                        }
+                        var extractionStateDir = Path.Combine(ContentDirectory.FullName, LogsDirName);
+                        scheduler.Serialize(extractionStateDir);
                     }
 
                     if (stopCrawl)
@@ -820,8 +824,7 @@ namespace wordslab.webscraper
             public long TextConvertTime;
 
             // Track unique text blocks
-            private HashSet<int> stringHashes = new HashSet<int>();
-            float[] percentUniqueForLastDocs = new float[1000];
+            float[] percentUniqueForLastDocs = new float[10];
             int lastDocIndex = -1;
 
             // Track 10 last crawled pages
@@ -863,32 +866,17 @@ namespace wordslab.webscraper
             public List<CrawledPage> CrawledPagesWithErrors { get; set; } = new List<CrawledPage>();
 
             internal float SetPercentUniqueForLastDoc(NLPTextDocument document)
-            {
-                lock (stringHashes)
+            {                
+                var percent = document.PercentUniqueText;
+
+                lastDocIndex++;
+                if (lastDocIndex >= percentUniqueForLastDocs.Length)
                 {
-                    int charCount = 0;
-                    int uniqueCharCount = 0;
-                    foreach (var str in document.TextStrings)
-                    {
-                        charCount += str.Length;
-                        var hashCode = str.GetHashCode();
-                        if (!stringHashes.Contains(hashCode))
-                        {
-                            stringHashes.Add(hashCode);
-                            uniqueCharCount += str.Length;
-                        }
-                    }
-                    var percent = (charCount > 0) ? (uniqueCharCount / (float)charCount) : 1;
-
-                    lastDocIndex++;
-                    if (lastDocIndex >= percentUniqueForLastDocs.Length)
-                    {
-                        lastDocIndex = 0;
-                    }
-                    percentUniqueForLastDocs[lastDocIndex] = percent;
-
-                    return percent;
+                    lastDocIndex = 0;
                 }
+                percentUniqueForLastDocs[lastDocIndex] = percent;
+
+                return percent;
             }
 
             public float PercentUniqueForLastDocs

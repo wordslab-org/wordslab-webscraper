@@ -50,45 +50,77 @@ namespace wordslab.nlptextdoc
         public bool HasMetadata { get { return metadataDictionary != null; } }
 
         /// <summary>
-        /// Content of the document
+        /// Content of the document: first level elements
         /// </summary>
         public IList<DocumentElement> Elements { get; private set; }
 
         /// <summary>
-        /// Iterate over all TextBlocks and Titles of the documents with depth-first traversal
+        /// Percentage of the words in the document which belong to unique text block.
+        /// Only available after a full text analysis of the document.
         /// </summary>
-        public IEnumerable<string> TextStrings
+        public float PercentUniqueText { get; set; }
+
+        /// <summary>
+        /// Content of the document: first level elements filtered ignoring non unique group elements.
+        /// </summary>
+        public IEnumerable<DocumentElement> UniqueElements
         {
             get
             {
-                foreach(var str in GetTextStrings(Elements))
+                foreach (var element in Elements)
                 {
-                    yield return str;
+                    if (element.Type == DocumentElementType.TextBlock)
+                    {
+                        yield return element;
+                    }
+                    else if (element is GroupElement)
+                    {
+                        var groupElement = (GroupElement)element;
+                        if (groupElement.ContainsUniqueText)
+                        {
+                            yield return groupElement;
+                        }
+                    }
                 }
             }
         }
 
-        private IEnumerable<string> GetTextStrings(IEnumerable<DocumentElement> elements)
+        /// <summary>
+        /// Iterate over all TextBlocks and Titles of the document with depth-first traversal
+        /// while skipping all groups which don't contain any unique text block
+        /// </summary>
+        public IEnumerable<NLPTextProperties> TextProperties
+        {
+            get
+            {
+                foreach(var textProps in GetTextProperties(Elements))
+                {
+                    yield return textProps;
+                }
+            }
+        }
+
+        private IEnumerable<NLPTextProperties> GetTextProperties(IEnumerable<DocumentElement> elements)
         {
             foreach (var element in elements)
             {
                 if (element.Type == DocumentElementType.TextBlock)
                 {
-                    yield return ((TextBlock)element).Text;
+                    yield return ((TextBlock)element).TextProperties;
                 }
                 else if (element is GroupElement)
-                {
+                {                    
                     if (element is GroupElementWithTitle)
                     {
-                        var title = ((GroupElementWithTitle)element).Title;
-                        if (!String.IsNullOrEmpty(title))
+                        var titleProps = ((GroupElementWithTitle)element).TitleProperties;
+                        if (titleProps != null)
                         {
-                            yield return title;
+                            yield return titleProps;
                         }
                     }
-                    foreach (var str in GetTextStrings(((GroupElement)element).Elements))
+                    foreach (var textProps in GetTextProperties(((GroupElement)element).Elements))
                     {
-                        yield return str;
+                        yield return textProps;
                     }
                 }
             }

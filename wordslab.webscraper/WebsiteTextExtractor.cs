@@ -18,6 +18,7 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using UglyToad.PdfPig;
+using System.Runtime.InteropServices;
 
 namespace wordslab.webscraper
 {
@@ -230,8 +231,7 @@ namespace wordslab.webscraper
                     context.ResponseCache.Add(htmlDocumentUri.AbsoluteUri, response);
                 }
 
-                
-                Stopwatch timer = Stopwatch.StartNew();
+                var startCPUTime = Perfs.GetThreadProcessorTime();                
                 if (crawledPage.HasHtmlContent)
                 {
                     // For HTML, the downloaded bytes counter is increased during the parsing phase below
@@ -250,8 +250,8 @@ namespace wordslab.webscraper
                     // Parse the PDF file content;
                     crawledPage.PdfDocument = PdfDocument.Open(crawledPage.Content.Bytes);
                 }
-                timer.Stop();
-                Perfs.AddParseTime(timer.ElapsedMilliseconds);
+                var endCPUTime = Perfs.GetThreadProcessorTime();
+                Perfs.AddParseTime((long)(endCPUTime - startCPUTime).TotalMilliseconds);
 
                 // Remove page which was just parsed from document cache (not useful anymore)
                 context.ResponseCache.Remove(htmlDocumentUri.AbsoluteUri);
@@ -485,7 +485,7 @@ namespace wordslab.webscraper
         /// </summary>
         public void ExtractNLPTextDocuments()
         {
-            Perfs = new PerfMonitor();
+            Perfs = new PerfMonitor(() => scheduler.CrawledCount, () => scheduler.Count);
 
             DisplayMessages(WriteStartMessage);
             DisplayMessages(Perfs.WriteStatusHeader);
@@ -569,7 +569,7 @@ namespace wordslab.webscraper
                     return;
                 }
 
-                Stopwatch timer = Stopwatch.StartNew();
+                var startCPUTime = Perfs.GetThreadProcessorTime();
                 NLPTextDocument normalizedTextDocument = null;
                 var htmlDocumentUri = crawledPage.HttpWebResponse.ResponseUri;
                 if (crawledPage.HasHtmlContent)
@@ -591,7 +591,7 @@ namespace wordslab.webscraper
                     // - one multiline textblock per block
                     normalizedTextDocument = PdfDocumentConverter.ConvertToNLPTextDocument(htmlDocumentUri.AbsoluteUri, pdfDocument);
                 }
-                timer.Stop();
+                var stopCPUTime = Perfs.GetThreadProcessorTime();
 
                 // Analyze the extracted text blocks and compute stats for text quality filters
                 NLPTextAnalyzer.AnalyzeDocument(normalizedTextDocument, scheduler.UniqueTextBlocks);
@@ -618,7 +618,7 @@ namespace wordslab.webscraper
                     var csvFileInfo = new FileInfo(NLPTextDocumentWriter.GetFullFilePath(fileInfo.FullName, NLPTextDocFormat.CsvDataframe));
                     if(csvFileInfo.Exists) { csvFileSize = csvFileInfo.Length;  }
 
-                    Perfs.AddTextConversion(timer.ElapsedMilliseconds, csvFileInfo.Length);
+                    Perfs.AddTextConversion((long)(stopCPUTime - startCPUTime).TotalMilliseconds, csvFileInfo.Length);
                 }
 
                 // Test stopping conditions
@@ -801,10 +801,13 @@ namespace wordslab.webscraper
 
         public class PerfMonitor
         {
-            public PerfMonitor()
+            public PerfMonitor(Func<int> getCrawledPagesCount, Func<int> getPagesToCrawlCount)
             {
+                GetCrawledPagesCount = getCrawledPagesCount;
+                GetPagesToCrawlCount = getPagesToCrawlCount;
+
                 StartTime = DateTime.Now;
-                for(int i = 0; i < percentUniqueForLastDocs.Length; i++)
+                for (int i = 0; i < percentUniqueForLastDocs.Length; i++)
                 {
                     percentUniqueForLastDocs[i] = -1;
                 }
@@ -814,12 +817,16 @@ namespace wordslab.webscraper
             public int HtmlPagesCount;
             public int CrawlErrorsCount;
 
+            // Crawled pages count
+            Func<int> GetCrawledPagesCount;
+            // Remaining links to crawl
+            Func<int> GetPagesToCrawlCount;
+
             // Bytes
             public long TotalDownloadSize;
             public long TotalSizeOnDisk;
 
             // Milliseconds
-
             public long HtmlParseTime;
             public long TextConvertTime;
 
@@ -942,22 +949,73 @@ namespace wordslab.webscraper
                 }
             }
 
+            public TimeSpan GetThreadProcessorTime()
+            {
+                var currentThreadId = GetCurrentNativeThreadId();
+                foreach (ProcessThread processThread in Process.GetCurrentProcess().Threads)
+                {
+                    if (processThread.Id == currentThreadId)
+                    {
+                        return processThread.TotalProcessorTime;
+                    }
+                }
+                throw new KeyNotFoundException("Manager thread id not found");
+            }
+
             public void WriteStatusHeader(TextWriter wr, string message = null)
             {
-                wr.WriteLine("Time    | Pages | Errors | Unique  | Download   | Disk       | Parsing | Convert |");
+                wr.WriteLine("Time    | Pages | Errors | Unique  | Download   | Convert | Crawled   | Remaining |");
             }
 
             public void WriteStatus(TextWriter wr, string message = null)
             {
-                wr.Write("\r{0} | {1,5} | {2,5}  |  {3,3} %  | {4,7:0.0} Mb | {5,7:0.0} Mb | {6} | {7} |",
+                var knownPages = GetCrawledPagesCount();
+                var remainingPages = GetPagesToCrawlCount();
+
+                wr.Write("\r{0} | {1,5} | {2,5}  |  {3,3} %  | {4,7:0.0} Mb | {5} | {6,9} | {7,9} |",
                     TimeSpan.FromMilliseconds(ElapsedTime).ToString(@"h\:mm\:ss"),
                     HtmlPagesCount,
                     CrawlErrorsCount,
                     (int)(PercentUniqueForLastDocs*100),
                     TotalDownloadSize / 1024.0 / 1024.0,
-                    TotalSizeOnDisk / 1024.0 / 1024.0,
-                    TimeSpan.FromMilliseconds(HtmlParseTime).ToString(@"h\:mm\:ss"),
-                    TimeSpan.FromMilliseconds(TextConvertTime).ToString(@"h\:mm\:ss"));
+                    TimeSpan.FromMilliseconds(TextConvertTime).ToString(@"h\:mm\:ss"),
+                    knownPages-remainingPages,
+                    remainingPages);
+            }
+        }
+
+        // For Windows
+        [DllImport("kernel32.dll")]
+        private static extern uint GetCurrentThreadId();
+
+        // For Linux
+        [DllImport("libc.so.6")]
+        private static extern int syscall(int number);
+
+        // For macOS
+        [DllImport("libc.dylib")]
+        private static extern ulong pthread_self();
+
+        private static long GetCurrentNativeThreadId()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                // Call the function that gets the thread ID in Windows.
+                return GetCurrentThreadId();
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                // Linux syscall number for 'gettid' (getting thread ID) is 186.
+                return syscall(186); // 186 is the syscall number for gettid
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                // On macOS, we can use pthread_self.
+                return (long)pthread_self();
+            }
+            else
+            {
+                throw new NotSupportedException("Unable to retrieve the native thread ID on this platform.");
             }
         }
     }

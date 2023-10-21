@@ -40,6 +40,8 @@ namespace Abot.Core
             return true;    
         }
 
+        public int Count { get { throw new NotImplementedException(); } }
+
         public void Dispose()
         {
            

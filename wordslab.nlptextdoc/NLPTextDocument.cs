@@ -71,7 +71,11 @@ namespace wordslab.nlptextdoc
                 {
                     if (element.Type == DocumentElementType.TextBlock)
                     {
-                        yield return element;
+                        var textBlock = (TextBlock)element;
+                        if (textBlock.TextProperties.IsUnique.Value)
+                        {
+                            yield return element;
+                        }
                     }
                     else if (element is GroupElement)
                     {

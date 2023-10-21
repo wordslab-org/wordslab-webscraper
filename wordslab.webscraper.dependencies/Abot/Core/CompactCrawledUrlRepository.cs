@@ -12,6 +12,8 @@ namespace Abot.Core
     {
         private ConcurrentDictionary<long, byte> m_UrlRepository = new ConcurrentDictionary<long, byte>();
 
+        public ConcurrentDictionary<long, byte> UrlRepository {  get { return m_UrlRepository; } set { m_UrlRepository = value; } }
+
         public CompactCrawledUrlRepository() { }
 
         /// <inheritDoc />
@@ -25,6 +27,8 @@ namespace Abot.Core
         {
             return m_UrlRepository.TryAdd(ComputeNumericId(uri.AbsoluteUri), 0);
         }
+
+        public int Count { get {  return m_UrlRepository.Count; } }
 
         /// <inheritDoc />
         public virtual void Dispose()

@@ -7,6 +7,7 @@ namespace Abot.Core
     {
         bool Contains(Uri uri);
         bool AddIfNew(Uri uri);
+        int Count {  get; }
     }
 
     [Serializable]
@@ -28,5 +29,7 @@ namespace Abot.Core
         {
             _urlRepository = null;
         }
+
+        public int Count {  get { return _urlRepository.Count; } }
     }
 }

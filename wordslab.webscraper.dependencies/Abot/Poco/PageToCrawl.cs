@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Dynamic;
-using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Abot.Poco
 {
@@ -65,12 +65,12 @@ namespace Abot.Poco
         /// </summary>
         public int CrawlDepth { get; set; }
 
-        [NonSerialized]
         private dynamic _pageBag = new ExpandoObject();
 
         /// <summary>
         /// Can store values of any type. Useful for adding custom values to the CrawledPage dynamically from event subscriber code
-        /// </summary>        
+        /// </summary>       
+        [JsonIgnore]
         public dynamic PageBag { get { return _pageBag; } set { _pageBag = value; } }
 
         /// <summary>

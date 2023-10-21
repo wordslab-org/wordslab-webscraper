@@ -28,8 +28,6 @@ namespace wordslab.nlptextdoc
         public DocumentElementType Type { get; private set; }
 
         public abstract bool IsEmpty { get; }
-
-        public abstract bool IsShort { get; }
     }
 
     public class TextBlock : DocumentElement
@@ -45,8 +43,6 @@ namespace wordslab.nlptextdoc
         public NLPTextProperties TextProperties { get; set; }
 
         public override bool IsEmpty => String.IsNullOrEmpty(Text);
-
-        public override bool IsShort => IsEmpty || Text.Length < 50;
     }
 
     public abstract class GroupElement : DocumentElement
@@ -91,8 +87,6 @@ namespace wordslab.nlptextdoc
         }
 
         public override bool IsEmpty => Elements.Count == 0 || !UniqueElements.Any(elt => !elt.IsEmpty);
-
-        public override bool IsShort => IsEmpty || !UniqueElements.Any(elt => !elt.IsShort);
     }
 
     public abstract class GroupElementWithTitle : GroupElement

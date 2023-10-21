@@ -67,9 +67,10 @@ namespace wordslab.webscraper.html
         private void AnalyseDocumentStructureToDelimitSections()
         {
             // 1. Find all section headers
-            var sectionHeaders = htmlDocument.All.Where(m => m.LocalName.StartsWith("h") &&
+            var sectionHeaders = htmlDocument.All.Where(m => (m.LocalName.StartsWith("h") &&
                 (m.LocalName == "h1" || m.LocalName == "h2" || m.LocalName == "h3" ||
-                 m.LocalName == "h4" || m.LocalName == "h5" || m.LocalName == "h6")).ToList();
+                 m.LocalName == "h4" || m.LocalName == "h5" || m.LocalName == "h6")) ||
+                 (m.LocalName == "p" && m.GetAttribute("role") == "heading" && m.HasAttribute("aria-level"))).ToList();
             // 2. List and store for later use the parent elements of all section headers
             var headersParentElements = new Dictionary<IElement, List<IElement>>();
             foreach (var header in sectionHeaders)
@@ -443,7 +444,14 @@ namespace wordslab.webscraper.html
 
         private static int GetHtmlHeaderLevel(IElement headerElement)
         {
-            return Int32.Parse(headerElement.TagName.Substring(1));
+            if (headerElement.LocalName.StartsWith("h"))
+            {
+                return Int32.Parse(headerElement.TagName.Substring(1));
+            }
+            else
+            {
+                return Int32.Parse(headerElement.GetAttribute("aria-level"));
+            }
         }
 
         private void EndSection()

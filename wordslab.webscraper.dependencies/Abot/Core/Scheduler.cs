@@ -85,10 +85,10 @@ namespace Abot.Core
         {
             var (crawledUrlsPath,pagesToCrawlPath,uniqueTextBlocksPath) = GetSerializationFilesNames(extractionStateDir);
                         
-            var jsonString = JsonSerializer.Serialize(_crawledUrlRepo);
+            var jsonString = JsonSerializer.Serialize((CompactCrawledUrlRepository)_crawledUrlRepo);
             File.WriteAllText(crawledUrlsPath, jsonString);
 
-            jsonString = JsonSerializer.Serialize(_pagesToCrawlRepo);
+            jsonString = JsonSerializer.Serialize((FifoPagesToCrawlRepository)_pagesToCrawlRepo);
             File.WriteAllText(pagesToCrawlPath, jsonString);
 
             jsonString = JsonSerializer.Serialize(_uniqueTextBlocks);
@@ -143,6 +143,11 @@ namespace Abot.Core
         public int Count
         {
             get { return _pagesToCrawlRepo.Count(); }
+        }
+
+        public int CrawledCount
+        {
+            get { return _crawledUrlRepo.Count; }
         }
 
         public void Add(PageToCrawl page)

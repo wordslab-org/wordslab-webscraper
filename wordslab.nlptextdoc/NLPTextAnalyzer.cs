@@ -88,7 +88,14 @@ namespace wordslab.nlptextdoc
             }
 
             // Store stats in the document
-            normalizedTextDocument.PercentUniqueText = uniquewords / (float)totalwords;
+            if (totalwords > 0)
+            {
+                normalizedTextDocument.PercentUniqueText = uniquewords / (float)totalwords;
+            }
+            else
+            {
+                normalizedTextDocument.PercentUniqueText = 0;
+            }
             foreach (var lang in docLanguagesDict.Keys)
             {
                 normalizedTextDocument.Metadata.Add("words-count:"+lang, docLanguagesDict[lang].ToString());
@@ -148,6 +155,8 @@ namespace wordslab.nlptextdoc
 
         public NLPTextProperties AnalyzeText(string text)
         {
+            if (text == null) return null;
+
             var textStats = new NLPTextProperties();
 
             StringBuilder encodedSB = null;

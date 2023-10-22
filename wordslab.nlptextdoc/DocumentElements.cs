@@ -77,7 +77,9 @@ namespace wordslab.nlptextdoc
                     else if (element is GroupElement)
                     {
                         var groupElement = (GroupElement)element;
-                        if (groupElement.ContainsUniqueText)
+                        // We exclude a complete Section, List or Table
+                        // but we never exclude a single ListItem or TableElement if the parent container contains unique text
+                        if (!(groupElement is GroupElementWithTitle) ||  groupElement.ContainsUniqueText)
                         {
                             yield return groupElement;
                         }

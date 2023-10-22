@@ -55,6 +55,12 @@ namespace wordslab.nlptextdoc
         public IList<DocumentElement> Elements { get; private set; }
 
         /// <summary>
+        /// Total number of words found in the document text blocks.
+        /// Only available after a full text analysis of the document.
+        /// </summary>
+        public int TotalWords { get; set; }
+
+        /// <summary>
         /// Percentage of the words in the document which belong to unique text block.
         /// Only available after a full text analysis of the document.
         /// </summary>

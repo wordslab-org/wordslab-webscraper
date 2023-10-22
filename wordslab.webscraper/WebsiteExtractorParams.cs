@@ -24,7 +24,7 @@ namespace wordslab.webscraper
             MaxDuration = 0;
             MaxPageCount = 0;
             MaxErrorsCount = 10;
-            MinUniqueText = 10;
+            MinUniqueText = 5;
             MaxSizeOnDisk = 0;
             MinCrawlDelay = 100;
             UrlPatternsToExclude = new List<String>();

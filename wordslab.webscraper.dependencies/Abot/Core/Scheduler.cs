@@ -145,7 +145,7 @@ namespace Abot.Core
             get { return _pagesToCrawlRepo.Count(); }
         }
 
-        public int CrawledCount
+        public int AnalyzedLinksCount
         {
             get { return _crawledUrlRepo.Count; }
         }

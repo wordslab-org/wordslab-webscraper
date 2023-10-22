@@ -19,6 +19,8 @@ using System.Net;
 using System.Threading;
 using UglyToad.PdfPig;
 using System.Runtime.InteropServices;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace wordslab.webscraper
 {
@@ -105,7 +107,7 @@ namespace wordslab.webscraper
         {
             CrawlConfiguration config = new CrawlConfiguration();
 
-            config.MaxConcurrentThreads = 1; //4; // Environment.ProcessorCount;
+            config.MaxConcurrentThreads = (int)Math.Ceiling(Environment.ProcessorCount / 4.0);
             config.MaxPagesToCrawl = 0;
             config.MaxPagesToCrawlPerDomain = 0;
             config.MaxPageSizeInBytes = 0;
@@ -148,13 +150,13 @@ namespace wordslab.webscraper
             config.LoginPassword = "";
             config.UseDefaultCredentials = false;
 
+            var extractionStateDir = Path.Combine(ContentDirectory.FullName, LogsDirName);
             if (!DoContinue)
             {
                 scheduler = new Scheduler(config.IsUriRecrawlingEnabled, null, null, null);
             }
             else
             {
-                var extractionStateDir = Path.Combine(ContentDirectory.FullName, LogsDirName);
                 scheduler = Scheduler.Deserialize(config.IsUriRecrawlingEnabled, extractionStateDir);
             }
             crawler = new PoliteWebCrawler(config, null, null, scheduler, null, null, null, null, null);
@@ -168,6 +170,15 @@ namespace wordslab.webscraper
             // DEBUG: uncomment to debug Abot crawling decisions
             // crawler.PageCrawlDisallowedAsync += WebCrawler_PageCrawlDisallowedAsync;
             // crawler.PageLinksCrawlDisallowedAsync += WebCrawler_PageLinksCrawlDisallowedAsync;
+
+            if (!DoContinue)
+            {
+                Perfs = new PerfMonitor(() => scheduler.AnalyzedLinksCount, () => scheduler.Count);
+            }
+            else
+            {
+                Perfs = PerfMonitor.Deserialize(() => scheduler.AnalyzedLinksCount, () => scheduler.Count, extractionStateDir);
+            }
         }
 
         // Html parser browsing context
@@ -485,8 +496,6 @@ namespace wordslab.webscraper
         /// </summary>
         public void ExtractNLPTextDocuments()
         {
-            Perfs = new PerfMonitor(() => scheduler.CrawledCount, () => scheduler.Count);
-
             DisplayMessages(WriteStartMessage);
             DisplayMessages(Perfs.WriteStatusHeader);
 
@@ -516,7 +525,7 @@ namespace wordslab.webscraper
 
         private void WriteStartMessage(TextWriter wr, string message = null)
         {
-            wr.WriteLine(DateTime.Now.ToString() + " : nlptextdoc extraction " + (DoContinue ? "continued from previous execution" : "started"));
+            wr.WriteLine(DateTime.Now.ToString() + " : wordslab-webscraper extraction " + (DoContinue ? "continued from previous execution" : "started"));
             wr.WriteLine();
             wr.WriteLine(">>> From : " + ExtractorParams.RootUrl);
             wr.WriteLine(">>> To   : " + ContentDirectory);
@@ -618,7 +627,7 @@ namespace wordslab.webscraper
                     var csvFileInfo = new FileInfo(NLPTextDocumentWriter.GetFullFilePath(fileInfo.FullName, NLPTextDocFormat.CsvDataframe));
                     if(csvFileInfo.Exists) { csvFileSize = csvFileInfo.Length;  }
 
-                    Perfs.AddTextConversion((long)(stopCPUTime - startCPUTime).TotalMilliseconds, csvFileInfo.Length);
+                    Perfs.AddTextConversion(crawledPage.HasPdfContent, normalizedTextDocument.TotalWords, (long)(stopCPUTime - startCPUTime).TotalMilliseconds, csvFileInfo.Length);
                 }
 
                 // Test stopping conditions
@@ -635,7 +644,7 @@ namespace wordslab.webscraper
                     stopCrawl = true;
                     stopMessage = "Extraction stopped because the extraction duration exceeded " + ExtractorParams.MaxDuration + " minutes";
                 }                               
-                else if(ExtractorParams.MaxPageCount > 0 && Perfs.HtmlPagesCount >= ExtractorParams.MaxPageCount)
+                else if(ExtractorParams.MaxPageCount > 0 && (Perfs.HtmlPagesCount + Perfs.PDFDocsCount) >= ExtractorParams.MaxPageCount)
                 {
                     stopCrawl = true;
                     stopMessage = "Extraction stopped because the number of extracted pages exceeded " + ExtractorParams.MaxPageCount;
@@ -699,6 +708,7 @@ namespace wordslab.webscraper
                         lastCheckpointTime = DateTime.Now;
                         var extractionStateDir = Path.Combine(ContentDirectory.FullName, LogsDirName);
                         scheduler.Serialize(extractionStateDir);
+                        Perfs.Serialize(extractionStateDir);
                     }
 
                     if (stopCrawl)
@@ -801,11 +811,9 @@ namespace wordslab.webscraper
 
         public class PerfMonitor
         {
-            public PerfMonitor(Func<int> getCrawledPagesCount, Func<int> getPagesToCrawlCount)
+            // For deserialization only
+            public PerfMonitor()
             {
-                GetCrawledPagesCount = getCrawledPagesCount;
-                GetPagesToCrawlCount = getPagesToCrawlCount;
-
                 StartTime = DateTime.Now;
                 for (int i = 0; i < percentUniqueForLastDocs.Length; i++)
                 {
@@ -813,22 +821,42 @@ namespace wordslab.webscraper
                 }
             }
 
-            // Count converted Html pages only
-            public int HtmlPagesCount;
+            public PerfMonitor(Func<int> getAnalyzedLinksCount, Func<int> getPagesToCrawlCount) : this()
+            {
+                GetAnalyzedLinksCount = getAnalyzedLinksCount;
+                GetPagesToCrawlCount = getPagesToCrawlCount;
+            }
+
+            // Count converted Html pages and PDF documents
+            private int _htmlPagesCount;
+            public int HtmlPagesCount { get { return _htmlPagesCount; } set { _htmlPagesCount = value; } }
+
+            private int _PDFDocsCount;
+            public int PDFDocsCount { get { return _PDFDocsCount; } set { _PDFDocsCount = value; } }
+
+            private int _extractedWordsCount;
+            public int ExtractedWordsCount { get { return _extractedWordsCount; } set { _extractedWordsCount = value; } }
+
             public int CrawlErrorsCount;
 
-            // Crawled pages count
-            Func<int> GetCrawledPagesCount;
+            // Crawled links count
+            Func<int> GetAnalyzedLinksCount;
             // Remaining links to crawl
             Func<int> GetPagesToCrawlCount;
 
             // Bytes
-            public long TotalDownloadSize;
-            public long TotalSizeOnDisk;
+            private long _totalDownloadSize;
+            public long TotalDownloadSize { get { return _totalDownloadSize; } set { _totalDownloadSize = value; } }
+
+            private long _totalSizeOnDisk;
+            public long TotalSizeOnDisk { get { return _totalSizeOnDisk; } set { _totalSizeOnDisk = value; } }
 
             // Milliseconds
-            public long HtmlParseTime;
-            public long TextConvertTime;
+            private long _htmlParseTime;
+            public long HtmlParseTime { get { return _htmlParseTime; } set { _htmlParseTime = value; } }
+
+            private long _textConvertTime;
+            public long TextConvertTime { get { return _textConvertTime; } set { _textConvertTime = value; } }
 
             // Track unique text blocks
             float[] percentUniqueForLastDocs = new float[10];
@@ -870,6 +898,7 @@ namespace wordslab.webscraper
             }
 
             // Track crawled pages with errors
+            [JsonIgnore]
             public List<CrawledPage> CrawledPagesWithErrors { get; set; } = new List<CrawledPage>();
 
             internal float SetPercentUniqueForLastDoc(NLPTextDocument document)
@@ -886,6 +915,7 @@ namespace wordslab.webscraper
                 return percent;
             }
 
+            [JsonIgnore]
             public float PercentUniqueForLastDocs
             {
                 get
@@ -921,24 +951,33 @@ namespace wordslab.webscraper
 
             public void AddDownloadSize(int downloadSize)
             {
-                Interlocked.Add(ref TotalDownloadSize, downloadSize);
+                Interlocked.Add(ref _totalDownloadSize, downloadSize);
             }
 
             public void AddParseTime(long parseTime)
             {
-                Interlocked.Add(ref HtmlParseTime, parseTime);
+                Interlocked.Add(ref _htmlParseTime, parseTime);
             }
 
-            public void AddTextConversion(long conversionTime, long sizeOnDisk)
+            public void AddTextConversion(bool fromPDFDocument, int extractedWordsCount, long conversionTime, long sizeOnDisk)
             {
-                Interlocked.Increment(ref HtmlPagesCount);
-                Interlocked.Add(ref TextConvertTime, conversionTime);
-                Interlocked.Add(ref TotalSizeOnDisk, sizeOnDisk);
+                if (fromPDFDocument)
+                {
+                    Interlocked.Increment(ref _PDFDocsCount);
+                }
+                else
+                {
+                    Interlocked.Increment(ref _htmlPagesCount);
+                }
+                Interlocked.Add(ref _extractedWordsCount, extractedWordsCount);
+                Interlocked.Add(ref _textConvertTime, conversionTime);
+                Interlocked.Add(ref _totalSizeOnDisk, sizeOnDisk);
             }
 
             public DateTime StartTime;
             public DateTime EndTime;
 
+            [JsonIgnore]
             public long ElapsedTime
             {
                 get
@@ -964,23 +1003,51 @@ namespace wordslab.webscraper
 
             public void WriteStatusHeader(TextWriter wr, string message = null)
             {
-                wr.WriteLine("Time    | Pages | Errors | Unique  | Download   | Convert | Crawled   | Remaining |");
+                wr.WriteLine("Time    | Pages | PDFs  | Errors | Words     | Unique@10 | Download   | Extract | Excluded  | Remaining |");
             }
 
             public void WriteStatus(TextWriter wr, string message = null)
             {
-                var knownPages = GetCrawledPagesCount();
+                var analyzedLinks = GetAnalyzedLinksCount();
                 var remainingPages = GetPagesToCrawlCount();
 
-                wr.Write("\r{0} | {1,5} | {2,5}  |  {3,3} %  | {4,7:0.0} Mb | {5} | {6,9} | {7,9} |",
+                wr.Write("\r{0} | {1,5} | {2,5} | {3,6} | {4,7} K |   {5,3} %   | {6,7:0.0} Mb | {7} | {8,9} | {9,9} |",
                     TimeSpan.FromMilliseconds(ElapsedTime).ToString(@"h\:mm\:ss"),
                     HtmlPagesCount,
+                    PDFDocsCount,
                     CrawlErrorsCount,
+                    ExtractedWordsCount/1000,
                     (int)(PercentUniqueForLastDocs*100),
                     TotalDownloadSize / 1024.0 / 1024.0,
-                    TimeSpan.FromMilliseconds(TextConvertTime).ToString(@"h\:mm\:ss"),
-                    knownPages-remainingPages,
+                    TimeSpan.FromMilliseconds(HtmlParseTime+TextConvertTime).ToString(@"h\:mm\:ss"),
+                    analyzedLinks - HtmlPagesCount - PDFDocsCount - CrawlErrorsCount - remainingPages,
                     remainingPages);
+            }
+
+            public void Serialize(string extractionStateDir)
+            {
+                var extractionStatsPath = GetSerializationFileName(extractionStateDir);
+
+                var jsonString = JsonSerializer.Serialize(this);
+                File.WriteAllText(extractionStatsPath, jsonString);
+            }
+
+            public static PerfMonitor Deserialize(Func<int> getAnalyzedLinksCount, Func<int> getPagesToCrawlCount, string extractionStateDir)
+            {
+                var extractionStatsPath = GetSerializationFileName(extractionStateDir);
+
+                var jsonString = File.ReadAllText(extractionStatsPath);
+                var perfMonitor = JsonSerializer.Deserialize<PerfMonitor>(jsonString);
+
+                perfMonitor.GetAnalyzedLinksCount = getAnalyzedLinksCount;
+                perfMonitor.GetPagesToCrawlCount = getPagesToCrawlCount;
+
+                return perfMonitor;
+            }
+
+            private static string GetSerializationFileName(string extractionStateDir)
+            {
+                return Path.Combine(extractionStateDir, "extractionStats.json");
             }
         }
 

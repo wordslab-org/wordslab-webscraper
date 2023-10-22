@@ -88,6 +88,7 @@ namespace wordslab.nlptextdoc
             }
 
             // Store stats in the document
+            normalizedTextDocument.TotalWords = totalwords;
             if (totalwords > 0)
             {
                 normalizedTextDocument.PercentUniqueText = uniquewords / (float)totalwords;

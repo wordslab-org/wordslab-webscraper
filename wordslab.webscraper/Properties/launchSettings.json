@@ -2,7 +2,7 @@
   "profiles": {
     "wordslab.webscraper": {
       "commandName": "Project",
-      "commandLineArgs": "continue https://www.creditmutuel.fr",
+      "commandLineArgs": "continue https://www.creditmutuel.fr excludeUrls=https://www.creditmutuel.fr/cmag/fr/particuliers/",
       "workingDirectory": "C:\\wordslab-webscraper-dataset-2023_10"
     }
   }

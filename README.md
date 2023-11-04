@@ -54,7 +54,10 @@ Features an advanced Html to text conversion algorithm :
 
 Usage to launch a website extraction:
 
+```
 wordslab-webscraper [scope] [rootUrl] [key=value optional params]
+```
+
  - scope            : domain | subdomain | path
                       > decide what part of the rootUrl should be used to limit the extraction
  - rootUrl          : root Url of the website (or subfolder of a website) you want to crawl

@@ -61,10 +61,31 @@ namespace wordslab.nlptextdoc
         public int TotalWords { get; set; }
 
         /// <summary>
-        /// Percentage of the words in the document which belong to unique text block.
+        /// Number of words in the document which belong to unique text blocks.
         /// Only available after a full text analysis of the document.
         /// </summary>
-        public float PercentUniqueText { get; set; }
+        public int UniqueWords { get; set; }
+
+        /// <summary>
+        /// Main language detected in the document (with the biggest number of words)
+        /// </summary>
+        public string Language { get; set; } = "?";
+
+        /// <summary>
+        /// Percentage of the words in the document which belong to unique text blocks.
+        /// Only available after a full text analysis of the document.
+        /// </summary>
+        public float PercentUniqueText { 
+            get
+            {
+                float percentUniqueText = 0;
+                if (TotalWords > 0)
+                {
+                    percentUniqueText = UniqueWords / (float)TotalWords;
+                }
+                return percentUniqueText;
+            }
+        }
 
         /// <summary>
         /// Content of the document: first level elements filtered ignoring non unique group elements.

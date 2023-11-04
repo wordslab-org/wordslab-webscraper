@@ -414,7 +414,6 @@ namespace wordslab.webscraper
 
         private void LogRequest(CrawledPage crawledPage, float percentUnique)
         {
-            Perfs.LastCrawledPages.Enqueue(crawledPage);
             lock (requestsWriter)
             {
                 requestsWriter.Write(crawledPage.RequestStarted.ToString("HH:mm:ss.fff"));
@@ -551,7 +550,7 @@ namespace wordslab.webscraper
                 if (crawledPage.WebException != null || crawledPage.HttpWebResponse.StatusCode != HttpStatusCode.OK)
                 {
                     LogRequest(crawledPage, 0);
-                    
+
                     if (crawledPage.WebException != null)
                     {
                         var message = crawledPage.WebException.Message.ToLower();
@@ -560,10 +559,10 @@ namespace wordslab.webscraper
                             Perfs.AddCrawlError(crawledPage);
                         }
                     }
-                    else if(crawledPage.HttpWebResponse != null)
+                    else if (crawledPage.HttpWebResponse != null)
                     {
                         int statusCode = (int)crawledPage.HttpWebResponse.StatusCode;
-                        if(statusCode != 404 && statusCode >= 400)
+                        if (statusCode != 404 && statusCode >= 400)
                         {
                             Perfs.AddCrawlError(crawledPage);
                         }
@@ -590,7 +589,7 @@ namespace wordslab.webscraper
                     var htmlConverter = new HtmlDocumentConverter(htmlDocumentUri.AbsoluteUri, htmlDocument);
                     normalizedTextDocument = htmlConverter.ConvertToNLPTextDocument();
                 }
-                else if (crawledPage.HasPdfContent)                    
+                else if (crawledPage.HasPdfContent)
                 {
                     // Get the PDF file content parsed by PdfPig
                     var pdfDocument = crawledPage.PdfDocument;
@@ -606,8 +605,13 @@ namespace wordslab.webscraper
                 NLPTextAnalyzer.AnalyzeDocument(normalizedTextDocument, scheduler.UniqueTextBlocks);
 
                 // Check the percentage of text blocks which are new & unique in this page
-                var percentUnique = Perfs.SetPercentUniqueForLastDoc(normalizedTextDocument);
-                
+                float percentUnique = 0;
+                lock (Perfs.LastCrawledPages) 
+                {
+                    Perfs.LastCrawledPages.Enqueue(crawledPage);
+                    percentUnique = Perfs.SetPercentUniqueForLastDoc(normalizedTextDocument);
+                }
+
                 // Log the request results
                 LogRequest(crawledPage, percentUnique);
 
@@ -622,12 +626,13 @@ namespace wordslab.webscraper
                     }
                     NLPTextDocumentWriter.WriteToFile(normalizedTextDocument, fileInfo.FullName, NLPTextDocFormat.CsvDataframe);
                     NLPTextDocumentWriter.WriteToFile(normalizedTextDocument, fileInfo.FullName, NLPTextDocFormat.HtmlPreview);
+                    NLPTextDocumentWriter.WriteToFile(normalizedTextDocument, fileInfo.FullName, NLPTextDocFormat.MarkdownText);
 
                     long csvFileSize = 0;
-                    var csvFileInfo = new FileInfo(NLPTextDocumentWriter.GetFullFilePath(fileInfo.FullName, NLPTextDocFormat.CsvDataframe));
+                    var csvFileInfo = new FileInfo(NLPTextDocumentWriter.GetFullFilePath(normalizedTextDocument, fileInfo.FullName, NLPTextDocFormat.CsvDataframe));
                     if(csvFileInfo.Exists) { csvFileSize = csvFileInfo.Length;  }
 
-                    Perfs.AddTextConversion(crawledPage.HasPdfContent, normalizedTextDocument.TotalWords, (long)(stopCPUTime - startCPUTime).TotalMilliseconds, csvFileInfo.Length);
+                    Perfs.AddTextConversion(crawledPage.HasPdfContent, normalizedTextDocument.UniqueWords, (long)(stopCPUTime - startCPUTime).TotalMilliseconds, csvFileInfo.Length);
                 }
 
                 // Test stopping conditions
@@ -672,15 +677,87 @@ namespace wordslab.webscraper
                         additionalStopInfo += $"- {crawledPageWithError.Uri}\n";
                     }
                 }
-                else if (ExtractorParams.MinUniqueText > 0 && Perfs.PercentUniqueForLastDocs < (ExtractorParams.MinUniqueText / 100.0))
+                else if (ExtractorParams.MinUniqueText > 0 && Perfs.LastCrawledPages.Count == 10 && Perfs.PercentUniqueForLastDocs < (ExtractorParams.MinUniqueText / 100.0))
                 {
-                    stopCrawl = true;
-                    stopMessage = "Extraction stopped because the % of new textblocks fell below " + ExtractorParams.MinUniqueText + "%";
-
-                    additionalStopInfo = "Last requests:\n";
-                    foreach(var lastCrawledPage in Perfs.LastCrawledPages.Elements())
+                    // Try to automatically identify the URL prefix we need to exclude
+                    lock (Perfs.LastCrawledPages)
                     {
-                        additionalStopInfo += $"- {lastCrawledPage.Uri}\n";
+                        if (Perfs.LastCrawledPages.Count == 10)
+                        {
+                            // 1. Filter the last URLs with a percentage of unique text below the minimum threshold
+                            var lastCrawledPagesUrls = Perfs.LastCrawledPages.Elements().Select(page => page.Uri.PathAndQuery).ToList(); // Dequeue !
+                            var lastCrawledPagesUniqueText = Perfs.LastCrawledPagesUniqueText.Select(pct => (int)(pct * 100)).ToList();
+                            Perfs.InitPercentUniqueForLastDocs();
+
+                            var filteredCrawledPagesUrls = lastCrawledPagesUrls.Zip(lastCrawledPagesUniqueText, (str, num) => new { str, num }) // combine both lists
+                                            .Where(item => item.num < ExtractorParams.MinUniqueText)  // filter based on condition
+                                            .Select(item => item.str) // select the strings only
+                                            .ToList();
+
+                            // 2. Find the longest common prefix
+                            int minLength = int.MaxValue;
+                            string minLengthUrl = null;
+                            foreach (var url in filteredCrawledPagesUrls)
+                            {
+                                if (url.Length < minLength)
+                                {
+                                    minLength = url.Length;
+                                    minLengthUrl = url;
+                                }
+                            }
+                            string commonPrefix = String.Empty;
+                            var commonPrefixFound = false;
+                            for (int i = 0; i < minLength; i++)
+                            {
+                                foreach (var url in filteredCrawledPagesUrls)
+                                {
+                                    if (url[i] != minLengthUrl[i])
+                                    {
+                                        // As soon as a mismatch is found, return the substring up to the current index.
+                                        commonPrefix = minLengthUrl.Substring(0, i);
+                                        commonPrefixFound = true;
+                                        break;
+                                    }
+                                }
+                                if (commonPrefixFound) break;
+                            }
+
+                            // 3. Success if the common prefix length is at least 25% of the maximum URL length
+                            if (commonPrefix.Length > minLength / 4)
+                            {
+                                if (!ExtractorParams.UrlPatternsToExclude.Contains(commonPrefix))
+                                {
+                                    // Write updated ExtractorParams to config file
+                                    ExtractorParams.UrlPatternsToExclude.Add(commonPrefix);
+                                    var logsDirectory = new DirectoryInfo(Path.Combine(ContentDirectory.FullName, LogsDirName));
+                                    using (var paramsWriter = new StreamWriter(Path.Combine(logsDirectory.FullName, ConfigFileName), true))
+                                    {
+                                        paramsWriter.WriteLine();
+                                        ExtractorParams.WriteToFile(paramsWriter);
+                                    }
+
+                                    // Update config, scheduler and re-filter allowed urls
+                                    crawler.AddUrlPatternToExclude(commonPrefix);
+
+                                    // Display exluded URL
+                                    DisplayMessages(WriteEndMessage, $"Automatically exclude URLs and resume crawl: {commonPrefix}");
+                                }
+
+                                // Then resume crawling ...
+                            }
+                            // 4. Failure: stop the crawl and let the user decide what to do
+                            else
+                            {
+                                stopCrawl = true;
+                                stopMessage = "Extraction stopped because the % of new textblocks fell below " + ExtractorParams.MinUniqueText + "%";
+
+                                additionalStopInfo = "Last requests:\n";
+                                foreach (var url in filteredCrawledPagesUrls)
+                                {
+                                    additionalStopInfo += $"- {url}\n";
+                                }
+                            }
+                        }
                     }
                 }
                 else if (ExtractorParams.MaxSizeOnDisk > 0 && Perfs.TotalSizeOnDisk >= (ExtractorParams.MaxSizeOnDisk * 1024L * 1024L))
@@ -815,10 +892,7 @@ namespace wordslab.webscraper
             public PerfMonitor()
             {
                 StartTime = DateTime.Now;
-                for (int i = 0; i < percentUniqueForLastDocs.Length; i++)
-                {
-                    percentUniqueForLastDocs[i] = -1;
-                }
+                InitPercentUniqueForLastDocs();
             }
 
             public PerfMonitor(Func<int> getAnalyzedLinksCount, Func<int> getPagesToCrawlCount) : this()
@@ -860,10 +934,22 @@ namespace wordslab.webscraper
 
             // Track unique text blocks
             float[] percentUniqueForLastDocs = new float[10];
-            int lastDocIndex = -1;
+            int lastDocIndex;
+
+            internal void InitPercentUniqueForLastDocs()
+            {
+                lastDocIndex = -1;
+                for (int i = 0; i < percentUniqueForLastDocs.Length; i++)
+                {
+                    percentUniqueForLastDocs[i] = -1;
+                }
+            }
 
             // Track 10 last crawled pages
             public FixedSizedQueue<CrawledPage> LastCrawledPages = new FixedSizedQueue<CrawledPage>(10);
+
+            // Track 10 last crawled pages percent of unique text
+            public float[] LastCrawledPagesUniqueText { get { return percentUniqueForLastDocs; } }
 
             public class FixedSizedQueue<T>
             {
@@ -885,6 +971,11 @@ namespace wordslab.webscraper
                         T outObj;
                         queue.TryDequeue(out outObj);
                     }
+                }
+
+                public int Count
+                {
+                    get { return queue.Count; }
                 }
 
                 public IEnumerable<T> Elements()

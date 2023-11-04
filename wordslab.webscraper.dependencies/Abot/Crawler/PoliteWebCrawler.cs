@@ -119,6 +119,13 @@ namespace Abot.Crawler
             return base.Crawl(uri, cancellationTokenSource);
         }
 
+        public void AddUrlPatternToExclude(string urlPattern)
+        {
+            _crawlContext.CrawlConfiguration.UrlPatternsToExclude.Add(urlPattern);
+            ((Robots.Robots)_robotsDotText.Robots).AddDisallowEntry(_crawlContext.CrawlConfiguration.RobotsDotTextUserAgentString, urlPattern);
+            ((Scheduler)_scheduler).FilterAllowedUrlsAfterConfig(this.ShouldCrawlPage);
+        }
+
         public void IsInternalUri()
         {
             throw new NotImplementedException();

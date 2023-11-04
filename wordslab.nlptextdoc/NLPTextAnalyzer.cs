@@ -3,8 +3,9 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Hashing;
+using System.Linq;
 using System.Reflection;
-using System.Security.Cryptography;
 using System.Text;
 
 namespace wordslab.nlptextdoc
@@ -22,7 +23,7 @@ namespace wordslab.nlptextdoc
         
         public string Lang;
 
-        public int HashCode;
+        public long HashCode;
         public bool? IsUnique;
 
         public string CSVEncodedText;
@@ -57,7 +58,7 @@ namespace wordslab.nlptextdoc
             fastText.LoadModel(languageIdentificationModelBytes);
         }
 
-        public static void AnalyzeDocument(NLPTextDocument normalizedTextDocument, ConcurrentDictionary<int, int> uniqueTextBlocks)
+        public static void AnalyzeDocument(NLPTextDocument normalizedTextDocument, ConcurrentDictionary<long, int> uniqueTextBlocks)
         {
             // Analyze all document elements in recursive way (depth-first)
             // and attach a NLPTextProperties object to each document element containing text
@@ -89,13 +90,10 @@ namespace wordslab.nlptextdoc
 
             // Store stats in the document
             normalizedTextDocument.TotalWords = totalwords;
-            if (totalwords > 0)
+            normalizedTextDocument.UniqueWords = uniquewords;
+            if (docLanguagesDict.Count > 0)
             {
-                normalizedTextDocument.PercentUniqueText = uniquewords / (float)totalwords;
-            }
-            else
-            {
-                normalizedTextDocument.PercentUniqueText = 0;
+                normalizedTextDocument.Language = docLanguagesDict.Aggregate((l, r) => l.Value > r.Value ? l : r).Key;
             }
             foreach (var lang in docLanguagesDict.Keys)
             {
@@ -103,7 +101,7 @@ namespace wordslab.nlptextdoc
             }
         }
 
-        private static bool AnalyzeDocumentElement(DocumentElement docElement, ConcurrentDictionary<int, int> uniqueTextBlocks)
+        private static bool AnalyzeDocumentElement(DocumentElement docElement, ConcurrentDictionary<long, int> uniqueTextBlocks)
         {
             // 1. Analyze elements with text
             NLPTextProperties textProperties = null;
@@ -243,7 +241,7 @@ namespace wordslab.nlptextdoc
                 }
             }
 
-            textStats.HashCode = text.GetHashCode();
+            textStats.HashCode = ComputeStableHash(text);
 
             return textStats;
         }
@@ -260,21 +258,11 @@ namespace wordslab.nlptextdoc
             }
         }
 
-        public static string ComputeMd5Hash(string text)
+        public static long ComputeStableHash(string text)
         {
-            using (MD5 md5 = MD5.Create())
-            {
-                byte[] hashBytes = md5.ComputeHash(Encoding.UTF8.GetBytes(text));
-
-                // Convert byte array to a string
-                StringBuilder hashString = new StringBuilder();
-                for (int i = 0; i < hashBytes.Length; i++)
-                {
-                    hashString.Append(hashBytes[i].ToString("x2"));
-                }
-
-                return hashString.ToString();
-            }
+            byte[] textBytes = Encoding.UTF8.GetBytes(text);
+            byte[] hashBytes =  XxHash64.Hash(textBytes);
+            return BitConverter.ToInt64(hashBytes, 0);
         }
     }
 }

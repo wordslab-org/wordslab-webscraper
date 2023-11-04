@@ -3,8 +3,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.Serialization;
-using System.Runtime.Serialization.Formatters.Binary;
 using System.Text.Json;
 
 namespace Abot.Core
@@ -56,7 +54,7 @@ namespace Abot.Core
         /// Keys: Fast and unreliable 32 bits hash of the text block
         /// Values: number of words of the corresponding text block
         /// </summary>
-        ConcurrentDictionary<int,int> UniqueTextBlocks { get; }
+        ConcurrentDictionary<long,int> UniqueTextBlocks { get; }
     }
 
     public class Scheduler : IScheduler
@@ -64,21 +62,21 @@ namespace Abot.Core
         bool _allowUriRecrawling;
         ICrawledUrlRepository _crawledUrlRepo;
         IPagesToCrawlRepository _pagesToCrawlRepo;
-        ConcurrentDictionary<int, int> _uniqueTextBlocks;
+        ConcurrentDictionary<long, int> _uniqueTextBlocks;
 
-        public ConcurrentDictionary<int, int> UniqueTextBlocks { get { return _uniqueTextBlocks; } }
+        public ConcurrentDictionary<long, int> UniqueTextBlocks { get { return _uniqueTextBlocks; } }
 
         public Scheduler()
             :this(false, null, null, null)
         {
         }
 
-        public Scheduler(bool allowUriRecrawling, ICrawledUrlRepository crawledUrlRepo, IPagesToCrawlRepository pagesToCrawlRepo, ConcurrentDictionary<int, int> uniqueTextBlocks)
+        public Scheduler(bool allowUriRecrawling, ICrawledUrlRepository crawledUrlRepo, IPagesToCrawlRepository pagesToCrawlRepo, ConcurrentDictionary<long, int> uniqueTextBlocks)
         {
             _allowUriRecrawling = allowUriRecrawling;
             _crawledUrlRepo = crawledUrlRepo ?? new CompactCrawledUrlRepository();
             _pagesToCrawlRepo = pagesToCrawlRepo ?? new FifoPagesToCrawlRepository();
-            _uniqueTextBlocks = uniqueTextBlocks ?? new ConcurrentDictionary<int, int>();
+            _uniqueTextBlocks = uniqueTextBlocks ?? new ConcurrentDictionary<long, int>();
         }
 
         public void Serialize(string extractionStateDir)
@@ -106,7 +104,7 @@ namespace Abot.Core
             var pagesToCrawlRepo = JsonSerializer.Deserialize<FifoPagesToCrawlRepository>(jsonString);
 
             jsonString = File.ReadAllText(uniqueTextBlocksPath);
-            var  uniqueTextBlocks = JsonSerializer.Deserialize<ConcurrentDictionary<int, int>>(jsonString);
+            var  uniqueTextBlocks = JsonSerializer.Deserialize<ConcurrentDictionary<long, int>>(jsonString);
 
             return new Scheduler(allowUriRecrawling, crawledUrlRepo, pagesToCrawlRepo, uniqueTextBlocks);
         }

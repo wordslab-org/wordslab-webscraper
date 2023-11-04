@@ -1,6 +1,100 @@
 ﻿# wordslab web scraper
 
-## Introduction
+## Installation
+
+### Windows
+
+```
+set installdir=%HOMEPATH%\wordslab-webscraper
+mkdir %installdir%
+curl -L -o %installdir%\wordslab-webscraper-win-x64.zip https://github.com/wordslab-org/wordslab-webscraper/releases/download/v1.0.0/wordslab-webscraper-win-x64.zip
+tar -x -f %installdir%\wordslab-webscraper-win-x64.zip -C %installdir%
+del %installdir%\wordslab-webscraper-win-x64.zip
+cd %installdir%
+wordslab-webscraper
+```
+
+### Linux
+
+```
+installdir=$HOME/wordslab-webscraper
+mkdir $installdir
+curl -L -o $installdir/wordslab-webscraper-linux-x64.tar.gz https://github.com/wordslab-org/wordslab-webscraper/releases/download/v1.0.0/wordslab-webscraper-linux-x64.tar.gz
+tar -xf $installdir/wordslab-webscraper-linux-x64.tar.gz -C $installdir
+rm $installdir/wordslab-webscraper-linux-x64.tar.gz
+cd $installdir
+./wordslab-webscraper
+```
+
+### MacOS
+
+```
+installdir=$HOME/wordslab-webscraper
+mkdir $installdir
+curl -L -o $installdir/wordslab-webscraper-osx-x64.tar.gz https://github.com/wordslab-org/wordslab-webscraper/releases/download/v1.0.0/wordslab-webscraper-osx-x64.tar.gz
+tar -xf $installdir/wordslab-webscraper-osx-x64.tar.gz -C $installdir
+rm $installdir/wordslab-webscraper-osx-x64.tar.gz
+cd $installdir
+./wordslab-webscraper
+```
+
+## Usage
+
+Crawls all the Html pages and PDF documents of a website and converts them to text documents.
+
+All the extracted text documents are stored under a single directory named like the website.
+
+The extracted file formats are described below, see "Output file formats".
+
+Features an advanced Html to text conversion algorithm :
+
+- tries to recover the logical structure of the document from the Html layout
+- interprets Css properties of the Html nodes to make this operation more reliable
+- preserves document / section / list / table grouping and nesting information
+
+Usage to launch a website extraction:
+
+wordslab-webscraper [scope] [rootUrl] [key=value optional params]
+ - scope            : domain | subdomain | path
+                      > decide what part of the rootUrl should be used to limit the extraction
+ - rootUrl          : root Url of the website (or subfolder of a website) you want to crawl
+
+Usage to continue or restart after a first try:
+
+```
+wordslab-webscraper [continue|restart] [rootUrl] [key=value optional params to override]
+```
+
+Optional parameters :
+
+ - minCrawlDelay=100   : delay in milliseconds between two requests sent to the website
+ - excludeUrls=/*.php$ : stop extracting text from urls starting with this pattern
+
+Optional stopping conditions (the first to be met will stop the crawl, 0 means no limit) :
+
+ - maxDuration=0     : maximum duration of the extraction in minutes
+ - maxPageCount=0    : maximum number of pages extracted from the website
+ - maxErrorsCount=10 : maximum number of errors during the extraction
+ - minUniqueText=5   : minimum percentage of unique text blocks extracted
+ - maxSizeOnDisk=0   : maximum size of the extracted text files on disk in Mb
+
+Recommended process :
+
+0. Navigate to the rootUrl in your browser and check the links on the page to select a scope for the extraction
+1. *Run* the the tool with the default min crawl delay = 100 ms, until the extraction is stopped after 10 errors
+2. Open the log file "_wordslab/requests.log.csv" created in the storageDirectory for the website
+3. Check for Http "Forbidden" answers or connection errors, and test if the url is accessible from your browser
+4. *Restart* the extraction with a bigger minCrawlDelay, and continue to increase it until "Forbidden" errors disappear
+5. Run the the tool with the default min percentage of unique text = 5% until the extraction is stopped by this criteria6. *Continue* the extraction with an additional excludeUrls=... parameter until you get more unique text blocks
+
+The extraction can take a while :
+
+- your system can go to hibernation mode and resume without interrupting the crawl
+- your can even stop the crawl (Ctrl-C or shutdown) and continue it later where you left it
+- the continue command will use checkpoint and config files found in the "_wordslab" subfolder
+- the restart command will ignore any checkpoint, start again at the root url, and overwrite everything
+
+## Motivation
 
 **Natural Language Processing** applications based on modern deep learning algorithms often rely on transfer learning techniques which require to pre-train a model on a large corpus of text.
 
@@ -71,45 +165,17 @@ There are 4 families of *DocumentElement*s
 Each DocumentElement has an integer **NestingLevel** property which tracks the depth of the element in the document tree.
 Direct children of NLPTextDocument have a NestingLevel equal to 1.
 
-### Standard file format
+### Output file formats
 
-The recommended file extension is **.nlp.txt**.
+The file encoding is **UTF-8** with BOM for all file formats.
 
-The mandatory file encoding is **UTF-8**.
+Three types of files are generated for each HTML page or PDF document extracted from the source website:
 
-A standard file is read as a **stream of lines**
-- lines are separated by a signle '\n' line feed character (10)
-- line breaks are escaped by the two characters '\\' 'n' inside text blocks
+1. Dataframe CSV file: **.[language].dataframe.csv**
+  - the column separator is ; and text fields are surrounded by "
+  - the columns are: DocEltType; DocEltCmd; NestingLevel; Text; Lang; Chars; Words; AvgWordsLength; LetterChars; NumberChars; OtherChars; HashCode; IsUnique
 
-Each line is parsed as
-- a **DocumentElement delimiter or property** if it starts with the two characters '#' '#' 
-- a TextBlock otherwise (add a space in front of a TextBlock starting with ## chars if needed)
+2. HTML preview file: **.[language].preview.html**
 
-The file starts with the three mandatory document properties, followed by optional metadata properties.
-- \#\# NLPTextDocument Title ...value...
-- \#\# NLPTextDocument Uri ...value...
-- \#\# NLPTextDocument Timestamp ...value...
-- \#\# NLPTextDocument Metadata [key]=...value...
+3. Markdown text file: **.[language].text.md**
 
-Parsing rules
-- the elements of these lines are separated by a single space character
-- the property name must appear as is, uppercase and lowercase are important
-- the property value starts after the space following the property name, until the end of line
-- the metadata key can't contain the '=' character, the metadata value starts right after the '=' delimiter char
- 
-DocumentElement delimiters format : 
-- \#\# [NestingLevel] [Section|List|NavigationList|Table] Start ...title...
-- \#\# [NestingLevel] [ListItem] Start
-- \#\# [NestingLevel] [TableHeader|TableCell] Start row,col
-- \#\# [NestingLevel] [TableHeader|TableCell] Start row:rowspan,col:colspan
-- \#\# [NestingLevel] [DocumentElementName] End <<...title...>>
-
-Compact format for short lists :
-- \#\# [NestingLevel] [List|NavigationList] Items [Title] >> [item 1] || [item 2] || [item 3]
-
-Additional parsing rules
-- nesting level is a positive integer value
-- nesting level can be computed while reading the file by counting the nested Start / Stop delimiters
-- but nesting level is mandatory in the file to help human readability
-- document element name is one of : Section, List, ListItem, Table, TableHeader, TableCell
-- Title property is optional and allowed only for Section, List and Table

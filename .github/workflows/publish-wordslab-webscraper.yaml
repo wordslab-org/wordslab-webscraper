@@ -36,8 +36,17 @@ jobs:
       run: |
         cd wordslab.webscraper
         dotnet publish -c Release -p:PublishProfile=windows
+        rm wordslab.webscraper/bin/Release/net7.0/publish/win-x64/*.pdb
+        rm wordslab.webscraper/bin/Release/net7.0/publish/win-x64/*.so
+        rm wordslab.webscraper/bin/Release/net7.0/publish/win-x64/*.dylib
         dotnet publish -c Release -p:PublishProfile=linux
+        rm wordslab.webscraper/bin/Release/net7.0/publish/linux-x64/*.pdb
+        rm wordslab.webscraper/bin/Release/net7.0/publish/linux-x64/*.dll
+        rm wordslab.webscraper/bin/Release/net7.0/publish/linux-x64/*.dylib
         dotnet publish -c Release -p:PublishProfile=macos-x64
+        rm wordslab.webscraper/bin/Release/net7.0/publish/osx-x64/*.pdb
+        rm wordslab.webscraper/bin/Release/net7.0/publish/osx-x64/*.dll
+        rm wordslab.webscraper/bin/Release/net7.0/publish/osx-x64/*.so
 
     - name: Create a zip archive for Windows
       uses: thedoctor0/zip-release@master

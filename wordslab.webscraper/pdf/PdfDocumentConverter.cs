@@ -50,10 +50,15 @@ namespace wordslab.webscraper.pdf
             }
 
             // Heuristic to detect page numbers and other artifacts we want to ignore
-            var textBlocksToIgnore = DecorationTextBlockClassifier.Get(pagesOfTextBlocks).SelectMany(page => page);
-            var documentTextBlocks = pagesOfTextBlocks.SelectMany(page => page).Except(textBlocksToIgnore).ToList();
+            var documentTextBlocksQuery = pagesOfTextBlocks.SelectMany(page => page);
+            if (pdfDocument.NumberOfPages > 1)
+            {
+                var textBlocksToIgnore = DecorationTextBlockClassifier.Get(pagesOfTextBlocks).SelectMany(page => page);
+                documentTextBlocksQuery = documentTextBlocksQuery.Except(textBlocksToIgnore);
+            }
 
             // Heuristic to detect the title heights
+            var documentTextBlocks = documentTextBlocksQuery.ToList();
             if (documentTextBlocks.Count > 0)
             {
                 var titlesLineHeights = new Stack<double>();

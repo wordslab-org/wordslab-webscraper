@@ -81,21 +81,60 @@ Optional stopping conditions (the first to be met will stop the crawl, 0 means n
  - minUniqueText=5   : minimum percentage of unique text blocks extracted
  - maxSizeOnDisk=0   : maximum size of the extracted text files on disk in Mb
 
+Usage to aggregate all extraction results in a HuggingFace dataset:
+
+```
+wordslab-webscraper dataset [domain] [language] [yearMonth]
+```
+
+Mandatory parameters :
+
+ - domain    : single word describing the business of knowledge domain of the dataset (ex: 'business')");
+ - language  : 2 letters code to filter the dataset language ('fr' for french)");
+ - yearMonth : 4 digits giving the year and the month of the web extraction ('2311' for nov 2023)");
+
 Recommended process :
 
-0. Navigate to the rootUrl in your browser and check the links on the page to select a scope for the extraction
-1. *Run* the the tool with the default min crawl delay = 100 ms, until the extraction is stopped after 10 errors
-2. Open the log file "_wordslab/requests.log.csv" created in the storageDirectory for the website
-3. Check for Http "Forbidden" answers or connection errors, and test if the url is accessible from your browser
-4. *Restart* the extraction with a bigger minCrawlDelay, and continue to increase it until "Forbidden" errors disappear
-5. Run the the tool with the default min percentage of unique text = 5% until the extraction is stopped by this criteria6. *Continue* the extraction with an additional excludeUrls=... parameter until you get more unique text blocks
-
+0. Navigate to the rootUrl in your browser and check the links on the page to select a scope for the extraction");
+1. *Run* the the tool with the default min crawl delay = 100 ms, until the extraction is stopped after 10 errors");
+2. Open the log file \"_wordslab/requests.log.csv\" created in the storageDirectory for the website");
+3. Check for Http \"Forbidden\" answers or connection errors, and test if the url is accessible from your browser");
+4. *Restart* the extraction with a bigger minCrawlDelay, and continue to increase it until \"Forbidden\" errors disappear");
+5. Run the the tool with the default min percentage of unique text = 5% until the extraction is stopped by this criteria");
+6. *Continue* the extraction with an additional excludeUrls=... parameter until you get more unique text blocks");
+            
 The extraction can take a while :
 
 - your system can go to hibernation mode and resume without interrupting the crawl
 - your can even stop the crawl (Ctrl-C or shutdown) and continue it later where you left it
 - the continue command will use checkpoint and config files found in the "_wordslab" subfolder
 - the restart command will ignore any checkpoint, start again at the root url, and overwrite everything
+
+After you finish all websites extractions, use the 'wordslab-webscraper dataset' command to generate a dataset.
+
+Share the dataset on the HuggingFace hub:
+```
+pip install --upgrade huggingface_hub
+```
+```
+huggingface-cli login
+                
+huggingface-cli repo create {dataset-name} --type dataset --organization {org-name}
+                
+# Make sure you have git-lfs installed
+# (https://git-lfs.github.com/)
+git lfs install
+
+git clone https://huggingface.co/datasets/{org-name}/{datasetName}
+                                
+cd {hfDatasetName}
+git lfs track *.parquet
+git add --all
+git commit -m "Add dataset files"
+                
+git commit -m "First version of the {dataset-name} dataset."
+git push
+```
 
 ## Motivation
 

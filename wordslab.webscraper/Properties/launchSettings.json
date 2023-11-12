@@ -2,8 +2,8 @@
   "profiles": {
     "wordslab.webscraper": {
       "commandName": "Project",
-      "commandLineArgs": "subdomain https://www.creditmutuel.fr",
-      "workingDirectory": "C:\\wordslab-webscraper-dataset-2023_10"
+      "commandLineArgs": "dataset banque fr 2311",
+      "workingDirectory": "C:\\wordslab-webscraper-dataset-2023_11"
     }
   }
 }

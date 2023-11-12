@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Parquet.Net" Version="4.16.4" />
     <PackageReference Include="PdfPig" Version="0.1.7" />
   </ItemGroup>
 

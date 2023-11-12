@@ -156,58 +156,14 @@ namespace wordslab.nlptextdoc
         {
             if (text == null) return null;
 
-            var textStats = new NLPTextProperties();
-
             StringBuilder encodedSB = null;
             if (text.IndexOf('"') >= 0)
             {
                 encodedSB = new StringBuilder();
             }
 
-            bool inWord = false;
-            int wordStartIndex = -1;
-            int charIndex = -1;
-            textStats.Chars = text.Length;
-            foreach (char c in text)
-            {
-                charIndex++;
-                if (encodedSB != null) { encodedSB.Append(c); }
-                if (char.IsWhiteSpace(c))
-                {
-                    if (inWord)
-                    {
-                        textStats.Words++;
-                        textStats.AvgWordLength += charIndex - wordStartIndex;
-                        inWord = false;
-                        wordStartIndex = -1;
-                    }                    
-                }
-                else 
-                {
-                    if (!inWord)
-                    {
-                        inWord = true;
-                        wordStartIndex = charIndex;
-                    }
+            var textStats = CountWordsAndChars(text, encodedSB);
 
-                    if(Char.IsLetter(c)) { textStats.LetterChars++; }
-                    else if (Char.IsNumber(c)) { textStats.NumberChars++; }
-                    else { textStats.OtherChars++; }
-
-                    if (c == '"') { encodedSB.Append('"'); }
-                }
-            }
-            if (inWord)
-            {
-                textStats.Words++;
-                textStats.AvgWordLength += charIndex - wordStartIndex;
-                inWord = false;
-                wordStartIndex = -1;
-            }
-            if (textStats.Words > 0) 
-            {
-                textStats.AvgWordLength /= textStats.Words;
-            }
             if (encodedSB != null)
             {
                 textStats.CSVEncodedText = encodedSB.ToString();
@@ -217,9 +173,9 @@ namespace wordslab.nlptextdoc
                 textStats.CSVEncodedText = text;
             }
 
-            lock(fastText)
+            lock (fastText)
             {
-                var preds = fastText.PredictMultiple(text,2);
+                var preds = fastText.PredictMultiple(text, 2);
                 if (preds.Length > 0)
                 {
                     if (preds[0].Probability > 0.6)
@@ -242,6 +198,58 @@ namespace wordslab.nlptextdoc
             }
 
             textStats.HashCode = ComputeStableHash(text);
+
+            return textStats;
+        }
+
+        public static NLPTextProperties CountWordsAndChars(string text, StringBuilder encodedSB = null)
+        {
+            var textStats = new NLPTextProperties();
+
+            bool inWord = false;
+            int wordStartIndex = -1;
+            int charIndex = -1;
+            textStats.Chars = text.Length;
+            foreach (char c in text)
+            {
+                charIndex++;
+                if (encodedSB != null) { encodedSB.Append(c); }
+                if (char.IsWhiteSpace(c))
+                {
+                    if (inWord)
+                    {
+                        textStats.Words++;
+                        textStats.AvgWordLength += charIndex - wordStartIndex;
+                        inWord = false;
+                        wordStartIndex = -1;
+                    }
+                }
+                else
+                {
+                    if (!inWord)
+                    {
+                        inWord = true;
+                        wordStartIndex = charIndex;
+                    }
+
+                    if (Char.IsLetter(c)) { textStats.LetterChars++; }
+                    else if (Char.IsNumber(c)) { textStats.NumberChars++; }
+                    else { textStats.OtherChars++; }
+
+                    if (c == '"' && encodedSB != null) { encodedSB.Append('"'); }
+                }
+            }
+            if (inWord)
+            {
+                textStats.Words++;
+                textStats.AvgWordLength += charIndex - wordStartIndex;
+                inWord = false;
+                wordStartIndex = -1;
+            }
+            if (textStats.Words > 0)
+            {
+                textStats.AvgWordLength /= textStats.Words;
+            }
 
             return textStats;
         }

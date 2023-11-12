@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Threading.Tasks;
+using wordslab.webscraper.parquet;
 
 namespace wordslab.webscraper
 {
@@ -41,6 +43,15 @@ namespace wordslab.webscraper
             Console.WriteLine(" - minUniqueText=5   : minimum percentage of unique text blocks extracted");
             Console.WriteLine(" - maxSizeOnDisk=0   : maximum size of the extracted text files on disk in Mb");
             Console.WriteLine();
+            Console.WriteLine("Usage to aggregate all extraction results in a HuggingFace dataset:");
+            Console.WriteLine();
+            Console.WriteLine("wordslab-webscraper dataset [domain] [language] [yearMonth]");
+            Console.WriteLine();
+            Console.WriteLine("Mandatory parameters :");
+            Console.WriteLine(" - domain    : single word describing the business of knowledge domain of the dataset (ex: 'business')");
+            Console.WriteLine(" - language  : 2 letters code to filter the dataset language ('fr' for french)");
+            Console.WriteLine(" - yearMonth : 4 digits giving the year and the month of the web extraction ('2311' for nov 2023)");
+            Console.WriteLine();
             Console.WriteLine("Recommended process :");
             Console.WriteLine("0. Navigate to the rootUrl in your browser and check the links on the page to select a scope for the extraction");
             Console.WriteLine("1. *Run* the the tool with the default min crawl delay = 100 ms, until the extraction is stopped after 10 errors");
@@ -56,9 +67,11 @@ namespace wordslab.webscraper
             Console.WriteLine("- the continue command will use checkpoint and config files found in the \"_wordslab\" subfolder");
             Console.WriteLine("- the restart command will ignore any checkpoint, start again at the root url, and overwrite everything");
             Console.WriteLine();
+            Console.WriteLine("After you finish all websites extractions, use the 'wordslab-webscraper dataset' command to generate a dataset.");
+            Console.WriteLine();
         }
 
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
             if (args.Length < 2)
             {
@@ -69,6 +82,15 @@ namespace wordslab.webscraper
                 var command = args[0].Trim().ToLower();
                 var rootUrl = args[1].Trim();
                 var storageDir = "."; // Always extract data in the current directory
+
+                if(command == "dataset")
+                {
+                    var domain = rootUrl;
+                    var lang = args[2].Trim();
+                    var yearMonth = args[3].Trim();
+                    await HuggingFaceDatasetBuilder.GenerateParquetDataset(storageDir, domain, lang, yearMonth);
+                    return;
+                }
 
                 bool doRestart = false;
                 bool doContinue = false;

@@ -47,11 +47,6 @@ namespace wordslab.nlptextdoc
                     writer.WriteLine("DocEltType;DocEltCmd;NestingLevel;Text;Lang;Chars;Words;AvgWordsLength;LetterChars;NumberChars;OtherChars;HashCode;IsUnique");
                     writer.WriteLine("Document;Start;1;;;;;;;;;;");
                 }
-                else if(docFormat == NLPTextDocFormat.MarkdownText)
-                {
-                    writer.WriteLine("---");
-                    writer.WriteLine();
-                }
                 if (docFormat != NLPTextDocFormat.MarkdownText)
                 {
                     if (docFormat == NLPTextDocFormat.HtmlPreview)

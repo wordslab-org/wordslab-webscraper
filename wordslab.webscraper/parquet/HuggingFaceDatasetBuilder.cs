@@ -120,10 +120,13 @@ namespace wordslab.webscraper.parquet
             string datasetCard = $$"""
                 ---
                 pretty_name: "{{datasetProperties.Domain}} {{datasetProperties.Language}} websites - {{datasetProperties.YearMonth}}"
-                tags: wordslab-webscraper
+                tags:
+                - wordslab-webscraper
 
-                task_categories: text-generation
-                task_ids: language-modeling
+                task_categories:
+                - text-generation
+                task_ids:
+                - language-modeling
                 size_categories: {{sizeCategory}}
 
                 language: {{datasetProperties.Language}}

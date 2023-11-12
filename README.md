@@ -112,28 +112,32 @@ The extraction can take a while :
 
 After you finish all websites extractions, use the 'wordslab-webscraper dataset' command to generate a dataset.
 
-Share the dataset on the HuggingFace hub:
+Share the dataset on the HuggingFace hub
+
 ```
 pip install --upgrade huggingface_hub
-```
-```
-huggingface-cli login
-                
-huggingface-cli repo create {dataset-name} --type dataset --organization {org-name}
-                
-# Make sure you have git-lfs installed
-# (https://git-lfs.github.com/)
+apt update && apt-get install git-lfs
 git lfs install
 
-git clone https://huggingface.co/datasets/{org-name}/{datasetName}
-                                
-cd {hfDatasetName}
+git config --global credential.helper store
+git config --global init.defaultBranch main
+git config --global user.email "[your@email]"
+git config --global user.name "[your_name]"
+
+# Copy a WRITE access token from your HuggingFace account: https://huggingface.co/settings/tokens
+# When prompted "Add token as git credential?" => Yes
+huggingface-cli login
+huggingface-cli repo create [your_dataset_name] --type dataset
+
+cd [your_dataset_name]
+git init
+git remote add origin https://huggingface.co/datasets/[your_huggingface_user]/[your_dataset_name].git
+git pull origin main
+
 git lfs track *.parquet
 git add --all
 git commit -m "Add dataset files"
-                
-git commit -m "First version of the {dataset-name} dataset."
-git push
+git push --set-upstream origin main
 ```
 
 ## Motivation

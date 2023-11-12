@@ -282,7 +282,7 @@ namespace wordslab.webscraper.parquet
 
         private static async Task<long> GenerateParquetFile(DatasetProperties datasetProperties, WebsiteProperties websiteProperties, string split, IEnumerable<FileInfo> textFiles)
         {
-            var parquetFile = $"{datasetProperties.Domain}_{datasetProperties.Language}_{split}_{websiteProperties.Name}.parquet";
+            var parquetFile = $"{datasetProperties.Domain}_{datasetProperties.Language}_{datasetProperties.YearMonth}_{split}_{websiteProperties.Name}.parquet";
             Console.Write($"- {parquetFile} ");
             var parquetRecords = GenerateParquetRecords(textFiles, datasetProperties, websiteProperties).ToList();
             Console.WriteLine(" OK");

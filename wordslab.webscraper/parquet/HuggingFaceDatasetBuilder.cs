@@ -151,8 +151,6 @@ namespace wordslab.webscraper.parquet
                   features:
                     - name: Uri
                       dtype: string
-                    - name: ExtractedFromPDF
-                      dtype: bool
                     - name: Timestamp
                       dtype: string
                     - name: Lang
@@ -173,6 +171,10 @@ namespace wordslab.webscraper.parquet
                       dtype: int32
                     - name: OtherChars
                       dtype: int32
+                    - name: Website
+                      dtype: string
+                    - name: PDF
+                      dtype: bool
                   config_name: default
                   splits:
                     - name: train
@@ -253,7 +255,6 @@ namespace wordslab.webscraper.parquet
 
                 Each example in the dataset contains the text of a full web page or PDF document, with the following features:
                 - Uri: string
-                - ExtractedFromPDF: bool
                 - Timestamp: string
                 - Lang: string
                 - Title: string
@@ -264,6 +265,8 @@ namespace wordslab.webscraper.parquet
                 - LetterChars: int32
                 - NumberChars: int32
                 - OtherChars: int32
+                - Website: string
+                - PDF: bool
 
                 Note that beause each example is a full page or document, the "Text" feature can be a pretty long string containing thousands of words (as measured by the "Words" feature): you will typically need to chunk it down to the context size of your large language model before using it.
 
@@ -291,7 +294,10 @@ namespace wordslab.webscraper.parquet
             Console.WriteLine(" OK");
 
             var parquetFileInfo = new FileInfo(Path.Combine(datasetProperties.BaseDirectory, parquetFile));
-            await ParquetSerializer.SerializeAsync(parquetRecords, parquetFileInfo.FullName);
+            await ParquetSerializer.SerializeAsync(parquetRecords, parquetFileInfo.FullName,
+                            // https://github.com/huggingface/datasets-server/blob/67459d20a074d58bd6c681f57736eeb30631ae5a/services/worker/src/worker/config.py#L202
+                            // PARQUET_AND_INFO_MAX_ROW_GROUP_BYTE_SIZE_FOR_COPY = 100_000_000
+                            new ParquetSerializerOptions() { RowGroupSize = 1_000, CompressionMethod = Parquet.CompressionMethod.Snappy });
             return parquetFileInfo.Length;
         }
 
@@ -310,7 +316,7 @@ namespace wordslab.webscraper.parquet
                 }
 
                 string text = File.ReadAllText(textFile.FullName, Encoding.UTF8);
-                var parquetRecord = new ParquetRecord() { Text = text, Lang = datasetProperties.Language };
+                var parquetRecord = new ParquetRecord() { Text = text, Lang = datasetProperties.Language, Website = websiteProperties.Name };
 
                 var textStats = NLPTextAnalyzer.CountWordsAndChars(text);
                 parquetRecord.Words = textStats.Words;
@@ -334,11 +340,11 @@ namespace wordslab.webscraper.parquet
                             parquetRecord.Uri = GetCsvTextField(line);
                             if(parquetRecord.Uri.EndsWith(".pdf", StringComparison.InvariantCultureIgnoreCase)) 
                             {
-                                parquetRecord.ExtractedFromPDF = true;
+                                parquetRecord.PDF = true;
                             }
                             else
                             {
-                                parquetRecord.ExtractedFromPDF = false;
+                                parquetRecord.PDF = false;
                             }
                         }
                         else if(line.StartsWith("Document;Timestamp;"))
@@ -349,7 +355,7 @@ namespace wordslab.webscraper.parquet
                     }                    
                 }
 
-                if (parquetRecord.ExtractedFromPDF)
+                if (parquetRecord.PDF)
                 {
                     websiteProperties.PDFDocuments++;
                 }
@@ -389,8 +395,6 @@ namespace wordslab.webscraper.parquet
         {
             public string Uri { get; set; }
 
-            public bool ExtractedFromPDF { get; set; }
-
             public string Timestamp { get; set; }
 
             public string Lang { get; set; }
@@ -398,6 +402,8 @@ namespace wordslab.webscraper.parquet
             public string Title { get; set; }
 
             public string Text { get; set; }
+
+            // Text stats
 
             public int Words {  get; set; }
                 
@@ -410,6 +416,12 @@ namespace wordslab.webscraper.parquet
             public int NumberChars { get; set; }
 
             public int OtherChars { get; set; }
+
+            // Extraction properties
+
+            public string Website { get; set; }
+
+            public bool PDF { get; set; }
         }
 
         private static Random rng = new Random();
